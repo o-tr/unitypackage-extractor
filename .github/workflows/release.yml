@@ -13,7 +13,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-container-and-push-image:
+  build-and-publish-windows-installer:
     runs-on: ubuntu-latest
 
     permissions:
@@ -29,6 +29,9 @@ jobs:
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install windows target
+        run: rustup target add x86_64-pc-windows-msvc
 
       - name: Build with cargo
         run: cargo build --release --target x86_64-pc-windows-msvc

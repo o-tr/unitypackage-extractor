@@ -8,6 +8,7 @@ pub struct ProgressWindow {
     window: nwg::Window,
     progress_bar: nwg::ProgressBar,
     label: nwg::Label,
+    #[allow(dead_code)]
     cancel_btn: nwg::Button,
     cancelled: Arc<AtomicBool>,
 }
@@ -50,7 +51,7 @@ impl ProgressWindow {
         // ウィンドウのクローズイベントでキャンセルフラグを立てる
         {
             let cancelled_clone = Arc::clone(&cancelled);
-            let handler = nwg::full_bind_event_handler(&window.handle, move |evt, _evt_data, handle| {
+            let _handler = nwg::full_bind_event_handler(&window.handle, move |evt, _evt_data, _handle| {
                 match evt {
                     nwg::Event::OnWindowClose => {
                         cancelled_clone.store(true, Ordering::SeqCst);
@@ -63,7 +64,7 @@ impl ProgressWindow {
         // キャンセルボタン押下時のイベント
         {
             let cancelled_clone = Arc::clone(&cancelled);
-            let handler = nwg::full_bind_event_handler(&cancel_btn.handle, move |evt, _evt_data, handle| {
+            let _handler = nwg::full_bind_event_handler(&cancel_btn.handle, move |evt, _evt_data, _handle| {
                 match evt {
                     nwg::Event::OnButtonClick => {
                         cancelled_clone.store(true, Ordering::SeqCst);

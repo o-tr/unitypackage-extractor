@@ -1,4 +1,3 @@
-use crate::dialog::confirm_overwrite;
 use crate::progress_window::ProgressWindow;
 use flate2::read::GzDecoder;
 use std::collections::HashMap;
@@ -47,7 +46,7 @@ pub fn extract_objects(
     let mut archive = Archive::new(gz);
 
     let mut idx = 0u32;
-    for mut entry in archive
+    for entry in archive
         .entries()
         .map_err(|e| format!("アーカイブのエントリの取得に失敗しました: {}", e))?
     {

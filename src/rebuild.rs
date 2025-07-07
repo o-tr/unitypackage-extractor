@@ -4,7 +4,7 @@ use crate::progress_window::ProgressWindow;
 use serde_yaml;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::Write;
 use std::path::Path;
 
 pub fn rebuild_objects(

@@ -1,4 +1,4 @@
-use rfd::{FileDialog, MessageDialog, MessageButtons, MessageLevel};
+use rfd::{FileDialog, MessageDialog};
 use std::env;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};

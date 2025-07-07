@@ -1,3 +1,4 @@
+use crate::dialog::confirm_overwrite;
 use flate2::read::GzDecoder;
 use std::collections::HashMap;
 use std::fs::File;
@@ -54,6 +55,7 @@ pub fn extract_objects(
                 std::fs::create_dir_all(parent).map_err(|e| format!("ディレクトリ作成失敗: {}", e))?;
             }
         }
+        // 上書き確認処理を削除（extractでは不要）
         let mut outfile = std::fs::File::create(&out_path)
             .map_err(|e| format!("ファイルの作成に失敗しました: {}", e))?;
         std::io::copy(&mut entry, &mut outfile).map_err(|e| format!("ファイルの書き込みに失敗しました: {}", e))?;

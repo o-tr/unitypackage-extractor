@@ -1,3 +1,4 @@
+use crate::dialog::confirm_overwrite;
 use crate::extract::{ASSET_META_FILENAME, PATHNAME_FILENAME};
 use serde_yaml;
 use std::collections::HashMap;
@@ -56,11 +57,20 @@ pub fn rebuild_objects(
             .parent()
             .unwrap()
             .join(format!("{}.meta", file_name));
-        if !meta_path.exists() {
+        if meta_path.exists() && !confirm_overwrite(&meta_path) {
+            println!("スキップ: {}", meta_path.display());
+        } else {
             let mut meta_file = File::create(meta_path).map_err(|e| format!("metaファイル作成失敗: {}", e))?;
             meta_file
                 .write_all(asset_meta.as_bytes())
                 .map_err(|e| format!("Failed to write file meta: {}", e))?;
+        }
+
+        if output_file_path.exists() {
+            if !confirm_overwrite(&output_file_path) {
+                println!("スキップ: {}", output_file_path.display());
+                continue;
+            }
         }
         std::fs::rename(source_file_path, output_file_path)
             .map_err(|e| format!("Failed to rename source file to output file: {}", e))?;

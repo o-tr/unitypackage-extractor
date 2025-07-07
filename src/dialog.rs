@@ -1,6 +1,9 @@
-use rfd::{FileDialog, MessageDialog};
+use rfd::{FileDialog, MessageDialog, MessageButtons, MessageLevel};
 use std::env;
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
+
+static OVERWRITE_ALL: OnceLock<Mutex<Option<bool>>> = OnceLock::new();
 
 // 出力先ディレクトリ選択ダイアログ関連
 pub fn pick_output_dir(archive_path: &Path) -> Result<String, String> {
@@ -19,5 +22,42 @@ pub fn pick_output_dir(archive_path: &Path) -> Result<String, String> {
                 .show();
             Err("解凍先フォルダーが選択されませんでした。".to_string())
         }
+    }
+}
+
+pub fn confirm_overwrite(path: &Path) -> bool {
+    let overwrite_all = OVERWRITE_ALL.get_or_init(|| Mutex::new(None));
+    if let Some(val) = *overwrite_all.lock().unwrap() {
+        return val;
+    }
+    let msg = format!("既にファイルが存在します。上書きしますか？\n{}", path.display());
+    let result = rfd::MessageDialog::new()
+        .set_title("上書き確認")
+        .set_description(&msg)
+        .set_buttons(rfd::MessageButtons::YesNoCancel)
+        .set_level(rfd::MessageLevel::Warning)
+        .show();
+    let apply_all = || {
+        rfd::MessageDialog::new()
+            .set_title("確認")
+            .set_description("今後すべてのファイルにこの操作を適用しますか？")
+            .set_buttons(rfd::MessageButtons::YesNo)
+            .set_level(rfd::MessageLevel::Info)
+            .show() == rfd::MessageDialogResult::Yes
+    };
+    match result {
+        rfd::MessageDialogResult::Yes => {
+            if apply_all() {
+                *overwrite_all.lock().unwrap() = Some(true);
+            }
+            true
+        },
+        rfd::MessageDialogResult::No => {
+            if apply_all() {
+                *overwrite_all.lock().unwrap() = Some(false);
+            }
+            false
+        },
+        _ => false,
     }
 }

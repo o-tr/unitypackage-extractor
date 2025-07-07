@@ -14,6 +14,7 @@ Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 
 [Files]
 Source: "..\target\x86_64-pc-windows-msvc\release\unitypackage-extractor.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "install.reg"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\unitypackage-extractor"; Filename: "{app}\unitypackage-extractor.exe"

@@ -1,5 +1,6 @@
 use crate::dialog::confirm_overwrite;
 use crate::extract::{ASSET_META_FILENAME, PATHNAME_FILENAME};
+use crate::progress_window::ProgressWindow;
 use serde_yaml;
 use std::collections::HashMap;
 use std::fs::File;
@@ -10,10 +11,19 @@ pub fn rebuild_objects(
     objects: &HashMap<String, HashMap<String, String>>,
     output_dir: &Path,
     source_dir: &Path,
+    progress: &ProgressWindow,
 ) -> Result<(), String> {
+    let total = objects.len() as u32;
+    progress.set_range(0, total);
+    let mut idx = 0u32;
     for (folder, files) in objects {
+        if progress.is_cancelled() {
+            return Err("ユーザーにより中断されました".to_string());
+        }
         let pathname = files.get(PATHNAME_FILENAME).ok_or("pathnameが見つかりません")?;
         let asset_meta = files.get(ASSET_META_FILENAME).ok_or("asset.metaが見つかりません")?;
+        progress.set_progress(idx, pathname);
+        idx += 1;
 
         let asset_meta_yaml: serde_yaml::Value =
             serde_yaml::from_str(asset_meta).map_err(|e| format!("asset.metaのYAMLパースに失敗しました: {}", e))?;
@@ -75,5 +85,6 @@ pub fn rebuild_objects(
         std::fs::rename(source_file_path, output_file_path)
             .map_err(|e| format!("Failed to rename source file to output file: {}", e))?;
     }
+    progress.set_progress(total, "完了");
     Ok(())
 }

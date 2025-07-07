@@ -1,4 +1,5 @@
 use crate::dialog::confirm_overwrite;
+use crate::progress_window::ProgressWindow;
 use flate2::read::GzDecoder;
 use std::collections::HashMap;
 use std::fs::File;
@@ -11,18 +12,50 @@ pub const ASSET_META_FILENAME: &str = "asset.meta";
 pub const PATHNAME_FILENAME: &str = "pathname";
 
 pub fn extract_objects(
-    archive: &mut Archive<GzDecoder<BufReader<File>>>,
+    archive_path: &Path,
     output_dir: &Path,
     objects: &mut HashMap<String, HashMap<String, String>>,
+    progress: &ProgressWindow,
 ) -> Result<(), String> {
     if !output_dir.exists() {
         std::fs::create_dir_all(output_dir).map_err(|e| format!("出力ディレクトリの作成に失敗しました: {}", e))?;
     }
-    for entry in archive
+
+    // まずエントリ数をカウント
+    let mut total = 0u32;
+    {
+        let file = File::open(archive_path).map_err(|e| format!("ファイルの読み込みに失敗しました: {}", e))?;
+        let reader = BufReader::new(file);
+        let gz = GzDecoder::new(reader);
+        let mut archive = Archive::new(gz);
+
+        for entry in archive
+            .entries()
+            .map_err(|e| format!("アーカイブのエントリの取得に失敗しました: {}", e))?
+        {
+            entry.map_err(|e| format!("アーカイブのエントリの読み込みに失敗しました: {}", e))?;
+            total += 1;
+        }
+    }
+
+    progress.set_range(0, total);
+
+    // 実際の処理用にアーカイブを再度開く
+    let file = File::open(archive_path).map_err(|e| format!("ファイルの読み込みに失敗しました: {}", e))?;
+    let reader = BufReader::new(file);
+    let gz = GzDecoder::new(reader);
+    let mut archive = Archive::new(gz);
+
+    let mut idx = 0u32;
+    for mut entry in archive
         .entries()
         .map_err(|e| format!("アーカイブのエントリの取得に失敗しました: {}", e))?
     {
-        let mut entry = entry.map_err(|e| format!("エントリの読み込みに失敗しました: {}", e))?;
+        if progress.is_cancelled() {
+            return Err("ユーザーにより中断されました".to_string());
+        }
+
+        let mut entry = entry.map_err(|e| format!("アーカイブのエントリの読み込みに失敗しました: {}", e))?;
         let path = entry
             .path()
             .map_err(|e| format!("パスの取得に失敗しました: {}", e))?
@@ -33,6 +66,9 @@ pub fn extract_objects(
         } else {
             "".to_string()
         };
+        progress.set_progress(idx, &file_name);
+        idx += 1;
+
         if file_name == ASSET_META_FILENAME || file_name == PATHNAME_FILENAME {
             let mut string_entry = String::new();
             entry
@@ -55,10 +91,10 @@ pub fn extract_objects(
                 std::fs::create_dir_all(parent).map_err(|e| format!("ディレクトリ作成失敗: {}", e))?;
             }
         }
-        // 上書き確認処理を削除（extractでは不要）
         let mut outfile = std::fs::File::create(&out_path)
             .map_err(|e| format!("ファイルの作成に失敗しました: {}", e))?;
         std::io::copy(&mut entry, &mut outfile).map_err(|e| format!("ファイルの書き込みに失敗しました: {}", e))?;
     }
+    progress.set_progress(total, "完了");
     Ok(())
 }

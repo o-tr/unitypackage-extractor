@@ -9,3 +9,4 @@ rfd = "0.12"
 tar = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
+native-windows-gui = "1.0.13"

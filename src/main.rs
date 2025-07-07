@@ -1,18 +1,16 @@
 mod dialog;
 mod extract;
 mod rebuild;
+mod progress_window;
 
 use dialog::pick_output_dir;
 use extract::extract_objects;
 use rebuild::rebuild_objects;
+use progress_window::ProgressWindow;
 
-use flate2::read::GzDecoder;
 use std::collections::HashMap;
 use std::env;
-use std::fs::File;
-use std::io::BufReader;
 use std::path::Path;
-use tar::Archive;
 use rfd::MessageDialog;
 
 const TMP_OUTPUT_DIR: &str = ".jp.ootr.unitypackage-extractor";
@@ -43,26 +41,21 @@ fn run() -> Result<(), String> {
     } else {
         pick_output_dir(filepath)?
     };
-
     let output_dir = Path::new(&output_dir);
     let tmp_output_dir = Path::new(&output_dir).join(TMP_OUTPUT_DIR);
-
     if tmp_output_dir.exists() {
         std::fs::remove_dir_all(&tmp_output_dir).map_err(|e| format!("一時ディレクトリの削除に失敗しました: {}", e))?;
     }
     
-    let file = File::open(filepath_str).map_err(|e| format!("ファイルを開けませんでした: {}", e))?;
-    let buf_reader = BufReader::new(file);
-    let gz_decoder = GzDecoder::new(buf_reader);
-    let mut archive = Archive::new(gz_decoder);
     let mut objects = HashMap::new();
-    extract_objects(&mut archive, &tmp_output_dir, &mut objects)?;
+    // 進捗ウィンドウ生成
+    let progress = ProgressWindow::new("処理中...", 1); // 仮のmax値、後で関数内で調整
+    extract_objects(filepath, &tmp_output_dir, &mut objects, &progress)?;
     println!("解凍が完了しました。");
-    rebuild_objects(&objects, &output_dir, &tmp_output_dir)?;
-
+    rebuild_objects(&objects, &output_dir, &tmp_output_dir, &progress)?;
+    progress.close();
     if tmp_output_dir.exists() {
         std::fs::remove_dir_all(&tmp_output_dir).map_err(|e| format!("一時ディレクトリの削除に失敗しました: {}", e))?;
     }
-
     Ok(())
 }

@@ -1,7 +1,7 @@
 ; unity-package インストーラー Inno Setup スクリプト
 [Setup]
 AppName=unitypackage-extractor
-AppVersion=0.0.1
+AppVersion=0.0.4
 DefaultDirName={pf}\unitypackage-extractor
 DefaultGroupName=unitypackage-extractor
 OutputBaseFilename=unitypackage-extractor-installer

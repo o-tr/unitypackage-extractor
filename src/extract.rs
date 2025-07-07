@@ -1,5 +1,4 @@
 use flate2::read::GzDecoder;
-// アーカイブからの抽出処理
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -14,18 +13,18 @@ pub fn extract_objects(
     archive: &mut Archive<GzDecoder<BufReader<File>>>,
     output_dir: &Path,
     objects: &mut HashMap<String, HashMap<String, String>>,
-) {
+) -> Result<(), String> {
     if !output_dir.exists() {
-        std::fs::create_dir_all(output_dir).expect("出力ディレクトリの作成に失敗しました");
+        std::fs::create_dir_all(output_dir).map_err(|e| format!("出力ディレクトリの作成に失敗しました: {}", e))?;
     }
     for entry in archive
         .entries()
-        .expect("アーカイブのエントリの取得に失敗しました")
+        .map_err(|e| format!("アーカイブのエントリの取得に失敗しました: {}", e))?
     {
-        let mut entry = entry.expect("エントリの読み込みに失敗しました");
+        let mut entry = entry.map_err(|e| format!("エントリの読み込みに失敗しました: {}", e))?;
         let path = entry
             .path()
-            .expect("パスの取得に失敗しました")
+            .map_err(|e| format!("パスの取得に失敗しました: {}", e))?
             .to_path_buf();
         let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
         let folder = if let Some(parent) = path.parent() {
@@ -37,7 +36,7 @@ pub fn extract_objects(
             let mut string_entry = String::new();
             entry
                 .read_to_string(&mut string_entry)
-                .expect("ファイルの読み込みに失敗しました");
+                .map_err(|e| format!("ファイルの読み込みに失敗しました: {}", e))?;
 
             objects
                 .entry(folder)
@@ -49,8 +48,15 @@ pub fn extract_objects(
             println!("unknown file: {}", file_name);
             continue;
         }
-        let mut outfile = std::fs::File::create(output_dir.join(&folder).join(&file_name))
-            .expect("ファイルの作成に失敗しました");
-        std::io::copy(&mut entry, &mut outfile).expect("ファイルの書き込みに失敗しました");
+        let out_path = output_dir.join(&folder).join(&file_name);
+        if let Some(parent) = out_path.parent() {
+            if !parent.exists() {
+                std::fs::create_dir_all(parent).map_err(|e| format!("ディレクトリ作成失敗: {}", e))?;
+            }
+        }
+        let mut outfile = std::fs::File::create(&out_path)
+            .map_err(|e| format!("ファイルの作成に失敗しました: {}", e))?;
+        std::io::copy(&mut entry, &mut outfile).map_err(|e| format!("ファイルの書き込みに失敗しました: {}", e))?;
     }
+    Ok(())
 }

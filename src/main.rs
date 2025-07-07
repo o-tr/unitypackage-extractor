@@ -46,7 +46,7 @@ fn run() -> Result<(), String> {
     if tmp_output_dir.exists() {
         std::fs::remove_dir_all(&tmp_output_dir).map_err(|e| format!("一時ディレクトリの削除に失敗しました: {}", e))?;
     }
-    
+
     let mut objects = HashMap::new();
     // 進捗ウィンドウ生成
     let progress = ProgressWindow::new("処理中...", 1); // 仮のmax値、後で関数内で調整
@@ -56,6 +56,10 @@ fn run() -> Result<(), String> {
     progress.close();
     if tmp_output_dir.exists() {
         std::fs::remove_dir_all(&tmp_output_dir).map_err(|e| format!("一時ディレクトリの削除に失敗しました: {}", e))?;
+    }
+    // 解凍先フォルダーをエクスプローラーで開く
+    if let Err(e) = std::process::Command::new("explorer").arg(output_dir).status() {
+        eprintln!("エクスプローラーの起動に失敗しました: {}", e);
     }
     Ok(())
 }

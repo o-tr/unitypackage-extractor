@@ -1251,7 +1251,7 @@ checksum = "f6ccf251212114b54433ec949fd6a7841275f9ada20dddd2f29e9ceea4501493"
 
 [[package]]
 name = "unitypackage-extractor"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "flate2",
  "native-windows-gui",

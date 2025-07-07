@@ -21,4 +21,4 @@ Name: "{group}\unitypackage-extractor"; Filename: "{app}\unitypackage-extractor.
 Name: "{group}\アンインストール"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "regedit.exe"; Parameters: "/s \"{app}\\install.reg\""; Flags: runhidden
+Filename: "regedit.exe"; Parameters: "/s ""{app}\\install.reg"""; Flags: runhidden

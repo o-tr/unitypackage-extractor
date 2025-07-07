@@ -48,7 +48,7 @@ pub fn extract_objects(
             println!("unknown file: {}", file_name);
             continue;
         }
-        let out_path = output_dir.join(&folder).join(&file_name);
+        let out_path = output_dir.join(&folder);
         if let Some(parent) = out_path.parent() {
             if !parent.exists() {
                 std::fs::create_dir_all(parent).map_err(|e| format!("ディレクトリ作成失敗: {}", e))?;

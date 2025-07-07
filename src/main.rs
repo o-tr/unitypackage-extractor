@@ -46,6 +46,11 @@ fn run() -> Result<(), String> {
 
     let output_dir = Path::new(&output_dir);
     let tmp_output_dir = Path::new(&output_dir).join(TMP_OUTPUT_DIR);
+
+    if tmp_output_dir.exists() {
+        std::fs::remove_dir_all(&tmp_output_dir).map_err(|e| format!("一時ディレクトリの削除に失敗しました: {}", e))?;
+    }
+    
     let file = File::open(filepath_str).map_err(|e| format!("ファイルを開けませんでした: {}", e))?;
     let buf_reader = BufReader::new(file);
     let gz_decoder = GzDecoder::new(buf_reader);
@@ -54,5 +59,10 @@ fn run() -> Result<(), String> {
     extract_objects(&mut archive, &tmp_output_dir, &mut objects)?;
     println!("解凍が完了しました。");
     rebuild_objects(&objects, &output_dir, &tmp_output_dir)?;
+
+    if tmp_output_dir.exists() {
+        std::fs::remove_dir_all(&tmp_output_dir).map_err(|e| format!("一時ディレクトリの削除に失敗しました: {}", e))?;
+    }
+
     Ok(())
 }

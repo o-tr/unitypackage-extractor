@@ -49,3 +49,9 @@ jobs:
         with:
           name: unitypackage-extractor-installer
           path: "./installer/Output/unitypackage-extractor-installer.exe"
+
+      - name: Create GitHub Release (draft)
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: ./installer/Output/unitypackage-extractor-installer.exe

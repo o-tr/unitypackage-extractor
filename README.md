@@ -6,6 +6,15 @@ Rust製CLIツール「unitypackage-extractor」は、Unityの .unitypackage フ�
 - .unitypackageファイルのコンテキストメニューからアセット、metaファイルの展開
 
 ## 使い方
+### インストール
+- [リリースページ](https://github.com/o-tr/unitypackage-extractor/releases)から最新のインストーラーをダウンロードし、実行してください
+
+### 使用方法
+- エクスプローラーで .unitypackage ファイルを右クリックし、「unitypackage-extractorで展開」を選択します。
+- 展開先のディレクトリを選択すると、アセットとmetaファイルが展開されます。
+
+
+## 開発
 ### ビルド
 ```
 cargo build --release

@@ -1,4 +1,48 @@
-name: release.yml
+name: release
+
 on:
+  workflow_dispatch:
+  push:
+    branches-ignore:
+      - "**"
+    tags:
+      - "v*"
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  build-container-and-push-image:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get tag name
+        id: get_tag
+        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build with cargo
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Set up Inno Setup
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        with:
+          path: './installer/unitypackage-extractor.iss'
+
+      - name: Build installer with Inno Setup
+        run: cd installer && iscc unitypackage-extractor.iss
+
+      - name: Upload Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: unitypackage-extractor-installer
+          path: "./installer/Output/unitypackage-extractor-installer.exe"

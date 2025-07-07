@@ -8,9 +8,6 @@ on:
     tags:
       - "v*"
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-publish-windows-installer:
@@ -55,3 +52,5 @@ jobs:
         with:
           draft: true
           files: ./installer/Output/unitypackage-extractor-installer.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

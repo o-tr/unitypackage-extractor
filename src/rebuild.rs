@@ -3,7 +3,7 @@ use yaml_rust::{YamlLoader};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
 use crate::progress_window::ProgressMsg;
 
@@ -61,8 +61,9 @@ pub fn rebuild_objects(
             .join(format!("{}.meta", file_name));
         if meta_path.exists() {
             let (resp_tx, resp_rx) = std::sync::mpsc::channel();
-            tx.send(crate::progress_window::ProgressMsg::ConfirmOverwrite {
-                path: meta_path.display().to_string(),
+            let meta_path_display = PathBuf::from(pathname).parent().unwrap().join(format!("{}.meta", file_name));
+            tx.send(ProgressMsg::ConfirmOverwrite {
+                path: meta_path_display.display().to_string(),
                 resp_tx,
             }).ok();
             if !resp_rx.recv().unwrap_or(false) {
@@ -82,8 +83,8 @@ pub fn rebuild_objects(
 
         if output_file_path.exists() {
             let (resp_tx, resp_rx) = std::sync::mpsc::channel();
-            tx.send(crate::progress_window::ProgressMsg::ConfirmOverwrite {
-                path: output_file_path.display().to_string(),
+            tx.send(ProgressMsg::ConfirmOverwrite {
+                path: pathname.to_string(),
                 resp_tx,
             }).ok();
             if !resp_rx.recv().unwrap_or(false) {

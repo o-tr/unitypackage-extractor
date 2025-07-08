@@ -1,7 +1,6 @@
 use rfd::{FileDialog, MessageDialog};
 use std::env;
 use std::path::Path;
-use std::sync::{Mutex, OnceLock};
 
 // 出力先ディレクトリ選択ダイアログ関連
 pub fn pick_output_dir(archive_path: &Path) -> Result<String, String> {

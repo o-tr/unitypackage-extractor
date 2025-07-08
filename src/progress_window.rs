@@ -18,7 +18,10 @@ pub struct ProgressWindow {
 
 pub enum ProgressMsg {
     Progress { value: f32, text: String, done: bool },
-    ConfirmOverwrite { path: String, resp_tx: Sender<bool> },
+    ConfirmOverwrite {
+        path: String,
+        resp_tx: Sender<bool>
+    },
 }
 
 impl ProgressWindow {
@@ -93,7 +96,9 @@ impl ProgressWindow {
                                 let _ = resp_tx.send(val);
                                 continue;
                             }
-                            let result = self.show_overwrite_dialog(&path);
+                            let result = self.show_overwrite_dialog(
+                                path
+                            );
                             let ok = matches!(result, Some(0) | Some(2));
                             if matches!(result, Some(2)) {
                                 self.overwrite_all = Some(true);
@@ -116,55 +121,99 @@ impl ProgressWindow {
         }
         self.close();
     }
-    fn show_overwrite_dialog(&self, path: &str) -> Option<u8> {
-        use fltk::{window::Window, button::Button, frame::Frame, prelude::*};
+    fn show_overwrite_dialog(&self, path: String) -> Option<u8> {
+        use fltk::{window::Window, button::Button, frame::Frame, prelude::*, enums::Align};
         use std::rc::Rc;
         use std::cell::RefCell;
-        let win = Rc::new(RefCell::new(Window::new(0, 0, 400, 180, "上書き確認")));
-        let msg = format!("既にファイルが存在します。上書きしますか？\n{}", path);
-        let _frame = Frame::new(20, 20, 360, 60, msg.as_str());
-        let mut btn_overwrite = Button::new(20, 100, 70, 30, "上書き");
-        let mut btn_skip = Button::new(100, 100, 70, 30, "スキップ");
-        let mut btn_all_overwrite = Button::new(180, 100, 110, 30, "すべて上書き");
-        let mut btn_all_skip = Button::new(20, 140, 110, 30, "すべてスキップ");
+
+        let win = Rc::new(RefCell::new(Window::new(0, 0, 400, 140, "ファイルの上書き確認")));
+        
+        // タイトルメッセージ
+        let mut title_frame = Frame::new(20, 10, 360, 30, "出力先のフォルダーに既存ファイルへの同じ名前のファイルが存在しています。");
+        title_frame.set_align(Align::Left | Align::Inside);
+        title_frame.set_label_size(11);
+
+        let label = format!("{}に上書きしますか？", path);
+        let mut current_info = Frame::new(20, 40, 360, 30, &*label);
+        current_info.set_align(Align::Left | Align::Inside);
+        current_info.set_label_size(10);
+
+        let mut btn_yes = Button::new(20, 80, 100, 25, "はい(&Y)");
+        let mut btn_no = Button::new(120, 80, 100, 25, "すべてはい(&A)");
+        let mut btn_cancel = Button::new(220, 80, 160, 25, "自動的に名前を変更(&U)");
+        let mut btn_no_all = Button::new(20, 110, 100, 25, "いいえ(&N)");
+        let mut btn_skip_all = Button::new(120, 110, 100, 25, "すべていいえ(&L)");
+        let mut btn_cancel_op = Button::new(220, 110, 160, 25, "キャンセル");
+        
         let result = Rc::new(RefCell::new(None));
+        
+        // はい（上書き）
         {
             let result = Rc::clone(&result);
             let win = Rc::clone(&win);
-            btn_overwrite.set_callback(move |_| {
+            btn_yes.set_callback(move |_| {
                 *result.borrow_mut() = Some(0);
                 win.borrow_mut().hide();
             });
         }
+        
+        // すべてはい（すべて上書き）
         {
             let result = Rc::clone(&result);
             let win = Rc::clone(&win);
-            btn_skip.set_callback(move |_| {
-                *result.borrow_mut() = Some(1);
-                win.borrow_mut().hide();
-            });
-        }
-        {
-            let result = Rc::clone(&result);
-            let win = Rc::clone(&win);
-            btn_all_overwrite.set_callback(move |_| {
+            btn_no.set_callback(move |_| {
                 *result.borrow_mut() = Some(2);
                 win.borrow_mut().hide();
             });
         }
+        
+        // いいえ（スキップ）
         {
             let result = Rc::clone(&result);
             let win = Rc::clone(&win);
-            btn_all_skip.set_callback(move |_| {
+            btn_no_all.set_callback(move |_| {
+                *result.borrow_mut() = Some(1);
+                win.borrow_mut().hide();
+            });
+        }
+        
+        // すべていいえ（すべてスキップ）
+        {
+            let result = Rc::clone(&result);
+            let win = Rc::clone(&win);
+            btn_skip_all.set_callback(move |_| {
                 *result.borrow_mut() = Some(3);
                 win.borrow_mut().hide();
             });
         }
+        
+        // キャンセル
+        {
+            let result = Rc::clone(&result);
+            let win = Rc::clone(&win);
+            btn_cancel_op.set_callback(move |_| {
+                *result.borrow_mut() = Some(1); // スキップとして処理
+                win.borrow_mut().hide();
+            });
+        }
+        
+        // 自動的に名前を変更（今回はスキップとして処理）
+        {
+            let result = Rc::clone(&result);
+            let win = Rc::clone(&win);
+            btn_cancel.set_callback(move |_| {
+                *result.borrow_mut() = Some(1); // スキップとして処理
+                win.borrow_mut().hide();
+            });
+        }
+        
         win.borrow_mut().end();
         win.borrow_mut().show();
+        
         while win.borrow().shown() {
             fltk::app::wait();
         }
+        
         *result.borrow()
     }
 }

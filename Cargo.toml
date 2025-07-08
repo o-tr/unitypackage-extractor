@@ -7,7 +7,5 @@ edition = "2024"
 flate2 = "1.0"
 rfd = "0.15"
 tar = "0.4"
-serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.9"
 native-windows-gui = "1.0.13"
 yaml-rust = "0.4"

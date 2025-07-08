@@ -1,7 +1,7 @@
 use crate::dialog::confirm_overwrite;
 use crate::extract::{ASSET_META_FILENAME, PATHNAME_FILENAME};
 use crate::progress_window::ProgressWindow;
-use serde_yaml;
+use yaml_rust::{YamlLoader};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
@@ -25,13 +25,10 @@ pub fn rebuild_objects(
         progress.set_progress(idx, pathname);
         idx += 1;
 
-        let asset_meta_yaml: serde_yaml::Value =
-            serde_yaml::from_str(asset_meta).map_err(|e| format!("asset.metaのYAMLパースに失敗しました: {}", e))?;
-        let is_dir = asset_meta_yaml
-            .get("folderAsset")
-            .and_then(|v| v.as_str())
-            .unwrap_or("false")
-            == "yes";
+        let asset_meta_yaml = YamlLoader::load_from_str(asset_meta)
+            .map_err(|e| format!("{}のmetaファイルのパースに失敗しました: {}", pathname, e))?;
+        let asset_meta_yaml = asset_meta_yaml.get(0).ok_or("metaファイルのルートが見つかりません")?;
+        let is_dir = asset_meta_yaml["folderAsset"].as_str().unwrap_or("false") == "yes";
 
         if is_dir {
             let output_path = output_dir.join(&pathname);

@@ -59,6 +59,12 @@ pub fn extract_objects(
             .path()
             .map_err(|e| format!("パスの取得に失敗しました: {}", e))?
             .to_path_buf();
+
+        if path.components().count() < 2 {
+            println!("ignore: {}", path.display());
+            continue;
+        }
+
         let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
         let folder = if let Some(parent) = path.parent() {
             parent.to_str().unwrap().to_string()
@@ -95,5 +101,6 @@ pub fn extract_objects(
         std::io::copy(&mut entry, &mut outfile).map_err(|e| format!("ファイルの書き込みに失敗しました: {}", e))?;
     }
     progress.set_progress(total, "完了");
+
     Ok(())
 }

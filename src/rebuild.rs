@@ -30,7 +30,8 @@ pub fn rebuild_objects(
         let asset_meta_yaml = asset_meta_yaml.get(0).ok_or("metaファイルのルートが見つかりません")?;
         let is_dir = asset_meta_yaml["folderAsset"].as_str().unwrap_or("false") == "yes";
 
-        if is_dir {
+        let source_file_path = source_dir.join(&folder);
+        if is_dir || !source_file_path.exists() {
             let output_path = output_dir.join(&pathname);
             if !output_path.exists() {
                 std::fs::create_dir_all(&output_path).map_err(|e| format!("Output directory creation failed: {}", e))?;
@@ -49,10 +50,6 @@ pub fn rebuild_objects(
             continue;
         }
 
-        let source_file_path = source_dir.join(&folder);
-        if !source_file_path.exists() {
-            return Err(format!("Source path does not exist: {}", source_file_path.display()));
-        }
         let output_file_path = output_dir.join(&pathname);
         let output_basedir = output_file_path.parent().unwrap();
         if !output_basedir.exists() {

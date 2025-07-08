@@ -1,4 +1,3 @@
-use crate::dialog::confirm_overwrite;
 use crate::extract::{ASSET_META_FILENAME, PATHNAME_FILENAME};
 use yaml_rust::{YamlLoader};
 use std::collections::HashMap;
@@ -15,13 +14,13 @@ pub fn rebuild_objects(
     tx: &Sender<ProgressMsg>,
 ) -> Result<(), String> {
     let total = objects.len() as f32;
-    tx.send(ProgressMsg { value: 0.0, text: "開始".to_string(), done: false }).ok();
+    tx.send(ProgressMsg::Progress { value: 0.0, text: "開始".to_string(), done: false }).ok();
     let mut idx = 0u32;
     for (folder, files) in objects {
         idx += 1;
         let pathname = files.get(PATHNAME_FILENAME).ok_or("pathnameが見つかりません")?;
         let asset_meta = files.get(ASSET_META_FILENAME).ok_or("asset.metaが見つかりません")?;
-        tx.send(ProgressMsg { value: idx as f32 /total , text: pathname.clone(), done: false }).ok();
+        tx.send(ProgressMsg::Progress { value: idx as f32 /total , text: pathname.clone(), done: false }).ok();
         fltk::app::awake();
 
         let asset_meta_yaml = YamlLoader::load_from_str(asset_meta)
@@ -60,8 +59,20 @@ pub fn rebuild_objects(
             .parent()
             .unwrap()
             .join(format!("{}.meta", file_name));
-        if meta_path.exists() && !confirm_overwrite(&meta_path) {
-            println!("スキップ: {}", meta_path.display());
+        if meta_path.exists() {
+            let (resp_tx, resp_rx) = std::sync::mpsc::channel();
+            tx.send(crate::progress_window::ProgressMsg::ConfirmOverwrite {
+                path: meta_path.display().to_string(),
+                resp_tx,
+            }).ok();
+            if !resp_rx.recv().unwrap_or(false) {
+                println!("スキップ: {}", meta_path.display());
+            } else {
+                let mut meta_file = File::create(meta_path).map_err(|e| format!("metaファイル作成失敗: {}", e))?;
+                meta_file
+                    .write_all(asset_meta.as_bytes())
+                    .map_err(|e| format!("Failed to write file meta: {}", e))?;
+            }
         } else {
             let mut meta_file = File::create(meta_path).map_err(|e| format!("metaファイル作成失敗: {}", e))?;
             meta_file
@@ -70,7 +81,12 @@ pub fn rebuild_objects(
         }
 
         if output_file_path.exists() {
-            if !confirm_overwrite(&output_file_path) {
+            let (resp_tx, resp_rx) = std::sync::mpsc::channel();
+            tx.send(crate::progress_window::ProgressMsg::ConfirmOverwrite {
+                path: output_file_path.display().to_string(),
+                resp_tx,
+            }).ok();
+            if !resp_rx.recv().unwrap_or(false) {
                 println!("スキップ: {}", output_file_path.display());
                 continue;
             }
@@ -78,6 +94,6 @@ pub fn rebuild_objects(
         std::fs::rename(source_file_path, output_file_path)
             .map_err(|e| format!("Failed to rename source file to output file: {}", e))?;
     }
-    tx.send(ProgressMsg { value: total, text: "完了".to_string(), done: true }).ok();
+    tx.send(ProgressMsg::Progress { value: total, text: "完了".to_string(), done: true }).ok();
     Ok(())
 }

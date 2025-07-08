@@ -56,7 +56,7 @@ pub fn extract_objects(
             .path()
             .map_err(|e| format!("パスの取得に失敗しました: {}", e))?
             .to_path_buf();
-        tx.send(ProgressMsg { value: (idx as f32)/(total as f32), text: path.display().to_string(), done: false }).ok();
+        tx.send(ProgressMsg::Progress { value: (idx as f32)/(total as f32), text: path.display().to_string(), done: false }).ok();
         fltk::app::awake();
 
         if path.components().count() < 2 {

@@ -2,7 +2,7 @@
 // クロスプラットフォーム対応: fltk-rs を利用
 
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
 use fltk::{app, button::Button, frame::Frame, prelude::*, window::Window, group::Pack, misc::Progress};
 
 pub struct ProgressWindow {
@@ -13,12 +13,12 @@ pub struct ProgressWindow {
     #[allow(dead_code)]
     cancel_btn: Button,
     cancelled: Arc<AtomicBool>,
+    overwrite_all: Option<bool>,
 }
 
-pub struct ProgressMsg {
-    pub value: f32,
-    pub text: String,
-    pub done: bool,
+pub enum ProgressMsg {
+    Progress { value: f32, text: String, done: bool },
+    ConfirmOverwrite { path: String, resp_tx: Sender<bool> },
 }
 
 impl ProgressWindow {
@@ -61,6 +61,7 @@ impl ProgressWindow {
             label,
             cancel_btn,
             cancelled,
+            overwrite_all: None,
         }
     }
     pub fn set_progress(&mut self, value: f32, text: &str) {
@@ -79,10 +80,29 @@ impl ProgressWindow {
         loop {
             match rx.try_recv() {
                 Ok(msg) => {
-                    if msg.done {
-                        break;
+                    match msg {
+                        ProgressMsg::Progress { value, text, done } => {
+                            if done {
+                                break;
+                            }
+                            self.set_progress(value, &text);
+                        },
+                        ProgressMsg::ConfirmOverwrite { path, resp_tx } => {
+                            // すべて上書き/すべてスキップが選択済みなら自動応答
+                            if let Some(val) = self.overwrite_all {
+                                let _ = resp_tx.send(val);
+                                continue;
+                            }
+                            let result = self.show_overwrite_dialog(&path);
+                            let ok = matches!(result, Some(0) | Some(2));
+                            if matches!(result, Some(2)) {
+                                self.overwrite_all = Some(true);
+                            } else if matches!(result, Some(3)) {
+                                self.overwrite_all = Some(false);
+                            }
+                            let _ = resp_tx.send(ok);
+                        },
                     }
-                    self.set_progress(msg.value, &msg.text);
                 },
                 Err(std::sync::mpsc::TryRecvError::Empty) => {},
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
@@ -95,5 +115,56 @@ impl ProgressWindow {
             self.app.wait();
         }
         self.close();
+    }
+    fn show_overwrite_dialog(&self, path: &str) -> Option<u8> {
+        use fltk::{window::Window, button::Button, frame::Frame, prelude::*};
+        use std::rc::Rc;
+        use std::cell::RefCell;
+        let win = Rc::new(RefCell::new(Window::new(0, 0, 400, 180, "上書き確認")));
+        let msg = format!("既にファイルが存在します。上書きしますか？\n{}", path);
+        let _frame = Frame::new(20, 20, 360, 60, msg.as_str());
+        let mut btn_overwrite = Button::new(20, 100, 70, 30, "上書き");
+        let mut btn_skip = Button::new(100, 100, 70, 30, "スキップ");
+        let mut btn_all_overwrite = Button::new(180, 100, 110, 30, "すべて上書き");
+        let mut btn_all_skip = Button::new(20, 140, 110, 30, "すべてスキップ");
+        let result = Rc::new(RefCell::new(None));
+        {
+            let result = Rc::clone(&result);
+            let win = Rc::clone(&win);
+            btn_overwrite.set_callback(move |_| {
+                *result.borrow_mut() = Some(0);
+                win.borrow_mut().hide();
+            });
+        }
+        {
+            let result = Rc::clone(&result);
+            let win = Rc::clone(&win);
+            btn_skip.set_callback(move |_| {
+                *result.borrow_mut() = Some(1);
+                win.borrow_mut().hide();
+            });
+        }
+        {
+            let result = Rc::clone(&result);
+            let win = Rc::clone(&win);
+            btn_all_overwrite.set_callback(move |_| {
+                *result.borrow_mut() = Some(2);
+                win.borrow_mut().hide();
+            });
+        }
+        {
+            let result = Rc::clone(&result);
+            let win = Rc::clone(&win);
+            btn_all_skip.set_callback(move |_| {
+                *result.borrow_mut() = Some(3);
+                win.borrow_mut().hide();
+            });
+        }
+        win.borrow_mut().end();
+        win.borrow_mut().show();
+        while win.borrow().shown() {
+            fltk::app::wait();
+        }
+        *result.borrow()
     }
 }

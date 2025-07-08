@@ -97,8 +97,13 @@ impl ProgressWindow {
                                 continue;
                             }
                             let result = self.show_overwrite_dialog(
-                                path
+                                path,
+                                &self.cancelled
                             );
+                            // キャンセルされた場合は即座にbreak
+                            if self.is_cancelled() {
+                                break;
+                            }
                             let ok = matches!(result, Some(0) | Some(2));
                             if matches!(result, Some(2)) {
                                 self.overwrite_all = Some(true);
@@ -121,10 +126,11 @@ impl ProgressWindow {
         }
         self.close();
     }
-    fn show_overwrite_dialog(&self, path: String) -> Option<u8> {
+    fn show_overwrite_dialog(&self, path: String, cancelled: &Arc<AtomicBool>) -> Option<u8> {
         use fltk::{window::Window, button::Button, frame::Frame, prelude::*, enums::Align};
         use std::rc::Rc;
         use std::cell::RefCell;
+        use std::sync::atomic::Ordering;
 
         let win = Rc::new(RefCell::new(Window::new(0, 0, 400, 140, "ファイルの上書き確認")));
         
@@ -191,8 +197,10 @@ impl ProgressWindow {
         {
             let result = Rc::clone(&result);
             let win = Rc::clone(&win);
+            let cancelled = Arc::clone(cancelled);
             btn_cancel_op.set_callback(move |_| {
                 *result.borrow_mut() = Some(1); // スキップとして処理
+                cancelled.store(true, Ordering::SeqCst); // 全体キャンセル
                 win.borrow_mut().hide();
             });
         }
@@ -201,8 +209,10 @@ impl ProgressWindow {
         {
             let result = Rc::clone(&result);
             let win = Rc::clone(&win);
+            let cancelled = Arc::clone(cancelled);
             btn_cancel.set_callback(move |_| {
                 *result.borrow_mut() = Some(1); // スキップとして処理
+                cancelled.store(true, Ordering::SeqCst); // 全体キャンセル
                 win.borrow_mut().hide();
             });
         }

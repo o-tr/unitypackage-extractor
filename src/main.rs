@@ -69,8 +69,14 @@ fn run() -> Result<(), String> {
         std::fs::remove_dir_all(&tmp_output_dir).map_err(|e| format!("一時ディレクトリの削除に失敗しました: {}", e))?;
     }
 
-    if let Err(e) = std::process::Command::new("explorer").arg(&output_dir).status() {
-        eprintln!("エクスプローラーの起動に失敗しました: {}", e);
+    // プラットフォームごとにディレクトリを開く
+    let open_result = match std::env::consts::OS {
+        "windows" => std::process::Command::new("explorer").arg(&output_dir).status(),
+        "macos" => std::process::Command::new("open").arg(&output_dir).status(),
+        _ => std::process::Command::new("xdg-open").arg(&output_dir).status(),
+    };
+    if let Err(e) = open_result {
+        eprintln!("ディレクトリのオープンに失敗しました: {}", e);
     }
     Ok(())
 }

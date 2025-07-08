@@ -80,6 +80,7 @@ impl ProgressWindow {
         self.app.quit();
     }
     pub fn run_loop(&mut self, rx: Receiver<ProgressMsg>) {
+        let mut auto_rename_all = false; // 追加: 自動リネームを全てに適用するフラグ
         loop {
             match rx.try_recv() {
                 Ok(msg) => {
@@ -91,9 +92,13 @@ impl ProgressWindow {
                             self.set_progress(value, &text);
                         },
                         ProgressMsg::ConfirmOverwrite { path, resp_tx } => {
-                            // すべて上書き/すべてスキップが選択済みなら自動応答
+                            // すべて上書き/すべてスキップ/すべて自動リネームが選択済みなら自動応答
                             if let Some(val) = self.overwrite_all {
                                 let _ = resp_tx.send(val);
+                                continue;
+                            }
+                            if auto_rename_all {
+                                let _ = resp_tx.send(false); // false: 自動リネーム
                                 continue;
                             }
                             let result = self.show_overwrite_dialog(
@@ -109,6 +114,8 @@ impl ProgressWindow {
                                 self.overwrite_all = Some(true);
                             } else if matches!(result, Some(3)) {
                                 self.overwrite_all = Some(false);
+                            } else if matches!(result, Some(4)) {
+                                auto_rename_all = true; // すべて自動リネーム
                             }
                             let _ = resp_tx.send(ok);
                         },
@@ -205,14 +212,12 @@ impl ProgressWindow {
             });
         }
         
-        // 自動的に名前を変更（今回はスキップとして処理）
+        // 自動的に名前を変更（今回は専用値4を返す）
         {
             let result = Rc::clone(&result);
             let win = Rc::clone(&win);
-            let cancelled = Arc::clone(cancelled);
             btn_cancel.set_callback(move |_| {
-                *result.borrow_mut() = Some(1); // スキップとして処理
-                cancelled.store(true, Ordering::SeqCst); // 全体キャンセル
+                *result.borrow_mut() = Some(4); // 4: 自動リネーム
                 win.borrow_mut().hide();
             });
         }

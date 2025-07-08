@@ -59,6 +59,8 @@ pub fn rebuild_objects(
             .parent()
             .unwrap()
             .join(format!("{}.meta", file_name));
+        let mut skip_asset = false;
+        let mut asset_rename: Option<String> = None;
         if meta_path.exists() {
             let (resp_tx, resp_rx) = std::sync::mpsc::channel();
             let meta_path_display = PathBuf::from(pathname).parent().unwrap().join(format!("{}.meta", file_name));
@@ -66,13 +68,40 @@ pub fn rebuild_objects(
                 path: meta_path_display.display().to_string(),
                 resp_tx,
             }).ok();
-            if !resp_rx.recv().unwrap_or(false) {
-                println!("スキップ: {}", meta_path.display());
-            } else {
+            let resp = resp_rx.recv();
+            if let Ok(false) = resp {
+                // falseの場合は「スキップ」または「自動リネーム」
+                // ProgressWindowのshow_overwrite_dialogでSome(4)（自動リネーム）の場合はfalseが返る
+                // ファイル名を自動リネーム
+                let mut new_meta_path = meta_path.clone();
+                let mut count = 1;
+                let mut new_asset_name = file_name.to_string();
+                while new_meta_path.exists() {
+                    let file_stem = file_name;
+                    if let Some((stem, ext)) = file_stem.rsplit_once('.') {
+                        let new_name = format!("{}_copy{}.{}", stem, count, ext);
+                        new_meta_path = output_file_path.parent().unwrap().join(format!("{}.meta", new_name));
+                        new_asset_name = new_name;
+                    } else {
+                        let new_name = format!("{}_copy{}", file_stem, count);
+                        new_meta_path = output_file_path.parent().unwrap().join(format!("{}.meta", new_name));
+                        new_asset_name = new_name;
+                    }
+                    count += 1;
+                }
+                let mut meta_file = File::create(&new_meta_path).map_err(|e| format!("metaファイル作成失敗: {}", e))?;
+                meta_file
+                    .write_all(asset_meta.as_bytes())
+                    .map_err(|e| format!("Failed to write file meta: {}", e))?;
+                asset_rename = Some(new_asset_name);
+            } else if let Ok(true) = resp {
                 let mut meta_file = File::create(meta_path).map_err(|e| format!("metaファイル作成失敗: {}", e))?;
                 meta_file
                     .write_all(asset_meta.as_bytes())
                     .map_err(|e| format!("Failed to write file meta: {}", e))?;
+            } else {
+                skip_asset = true;
+                println!("スキップ: {}", meta_path.display());
             }
         } else {
             let mut meta_file = File::create(meta_path).map_err(|e| format!("metaファイル作成失敗: {}", e))?;
@@ -81,19 +110,26 @@ pub fn rebuild_objects(
                 .map_err(|e| format!("Failed to write file meta: {}", e))?;
         }
 
-        if output_file_path.exists() {
+        // 実体ファイルの処理
+        let mut final_output_file_path = output_file_path.clone();
+        if let Some(new_name) = asset_rename {
+            final_output_file_path = output_file_path.parent().unwrap().join(new_name);
+        }
+        if final_output_file_path.exists() {
             let (resp_tx, resp_rx) = std::sync::mpsc::channel();
             tx.send(ProgressMsg::ConfirmOverwrite {
-                path: pathname.to_string(),
+                path: final_output_file_path.file_name().unwrap().to_string_lossy().to_string(),
                 resp_tx,
             }).ok();
             if !resp_rx.recv().unwrap_or(false) {
-                println!("スキップ: {}", output_file_path.display());
-                continue;
+                println!("スキップ: {}", final_output_file_path.display());
+                skip_asset = true;
             }
         }
-        std::fs::rename(source_file_path, output_file_path)
-            .map_err(|e| format!("Failed to rename source file to output file: {}", e))?;
+        if !skip_asset {
+            std::fs::rename(source_file_path, final_output_file_path)
+                .map_err(|e| format!("Failed to rename source file to output file: {}", e))?;
+        }
     }
     tx.send(ProgressMsg::Progress { value: total, text: "完了".to_string(), done: true }).ok();
     Ok(())

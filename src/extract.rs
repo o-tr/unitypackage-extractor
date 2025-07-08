@@ -59,9 +59,6 @@ pub fn extract_objects(
         tx.send(ProgressMsg { value: (idx as f32)/(total as f32), text: path.display().to_string(), done: false }).ok();
         fltk::app::awake();
 
-        //add delay
-        std::thread::sleep(std::time::Duration::from_millis(100));
-
         if path.components().count() < 2 {
             continue;
         }

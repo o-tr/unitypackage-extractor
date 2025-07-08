@@ -82,7 +82,6 @@ impl ProgressWindow {
                     if msg.done {
                         break;
                     }
-                    println!("progress: {}%, {}", (msg.value * 100.0) as u32, msg.text);
                     self.set_progress(msg.value, &msg.text);
                 },
                 Err(std::sync::mpsc::TryRecvError::Empty) => {},

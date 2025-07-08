@@ -23,7 +23,6 @@ pub fn rebuild_objects(
         let asset_meta = files.get(ASSET_META_FILENAME).ok_or("asset.metaが見つかりません")?;
         tx.send(ProgressMsg { value: idx as f32 /total , text: pathname.clone(), done: false }).ok();
         fltk::app::awake();
-        std::thread::sleep(std::time::Duration::from_millis(100));
 
         let asset_meta_yaml = YamlLoader::load_from_str(asset_meta)
             .map_err(|e| format!("{}のmetaファイルのパースに失敗しました: {}", pathname, e))?;

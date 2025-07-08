@@ -8,11 +8,12 @@ mod progress_window;
 use dialog::pick_output_dir;
 use extract::extract_objects;
 use rebuild::rebuild_objects;
-use progress_window::ProgressWindow;
+use progress_window::{ProgressWindow};
 
 use std::collections::HashMap;
 use std::env;
 use std::path::Path;
+use std::sync::mpsc;
 use rfd::MessageDialog;
 
 const TMP_OUTPUT_DIR: &str = ".jp.ootr.unitypackage-extractor";
@@ -49,18 +50,26 @@ fn run() -> Result<(), String> {
         std::fs::remove_dir_all(&tmp_output_dir).map_err(|e| format!("一時ディレクトリの削除に失敗しました: {}", e))?;
     }
 
-    let mut objects = HashMap::new();
-    // 進捗ウィンドウ生成
-    let progress = ProgressWindow::new("処理中...", 1); // 仮のmax値、後で関数内で調整
-    extract_objects(filepath, &tmp_output_dir, &mut objects, &progress)?;
+    let mut progress = ProgressWindow::new("処理中...");
+    let (tx, rx) = mpsc::channel();
+    let archive_path = filepath.to_path_buf();
+    let output_dir_for_extract = tmp_output_dir.to_path_buf();
+    let objects_arc = std::sync::Arc::new(std::sync::Mutex::new(HashMap::new()));
+    let objects_arc_extract = std::sync::Arc::clone(&objects_arc);
+    let output_dir2 = output_dir.to_path_buf();
+    std::thread::spawn(move || {
+        let mut objects = objects_arc_extract.lock().unwrap();
+        let _ = extract_objects(&archive_path, &output_dir_for_extract, &mut *objects, &tx);
+        let _ = rebuild_objects(&objects, &output_dir2, &output_dir_for_extract, &tx);
+    });
+    println!("解凍を開始します");
+    progress.run_loop(rx);
     println!("解凍が完了しました。");
-    rebuild_objects(&objects, &output_dir, &tmp_output_dir, &progress)?;
-    progress.close();
     if tmp_output_dir.exists() {
         std::fs::remove_dir_all(&tmp_output_dir).map_err(|e| format!("一時ディレクトリの削除に失敗しました: {}", e))?;
     }
-    // 解凍先フォルダーをエクスプローラーで開く
-    if let Err(e) = std::process::Command::new("explorer").arg(output_dir).status() {
+
+    if let Err(e) = std::process::Command::new("explorer").arg(&output_dir).status() {
         eprintln!("エクスプローラーの起動に失敗しました: {}", e);
     }
     Ok(())

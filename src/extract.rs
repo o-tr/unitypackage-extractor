@@ -1,9 +1,10 @@
-use crate::progress_window::ProgressWindow;
+use crate::progress_window::{ProgressMsg};
 use flate2::read::GzDecoder;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
+use std::sync::mpsc::Sender;
 use tar::Archive;
 
 pub const ASSET_FILE_NAME: &str = "asset";
@@ -14,7 +15,7 @@ pub fn extract_objects(
     archive_path: &Path,
     output_dir: &Path,
     objects: &mut HashMap<String, HashMap<String, String>>,
-    progress: &ProgressWindow,
+    tx: &Sender<ProgressMsg>,
 ) -> Result<(), String> {
     if !output_dir.exists() {
         std::fs::create_dir_all(output_dir).map_err(|e| format!("出力ディレクトリの作成に失敗しました: {}", e))?;
@@ -37,7 +38,6 @@ pub fn extract_objects(
         }
     }
 
-    progress.set_range(0, total);
 
     // 実際の処理用にアーカイブを再度開く
     let file = File::open(archive_path).map_err(|e| format!("ファイルの読み込みに失敗しました: {}", e))?;
@@ -50,18 +50,19 @@ pub fn extract_objects(
         .entries()
         .map_err(|e| format!("アーカイブのエントリの取得に失敗しました: {}", e))?
     {
-        if progress.is_cancelled() {
-            return Err("ユーザーにより中断されました".to_string());
-        }
-
+        idx += 1;
         let mut entry = entry.map_err(|e| format!("アーカイブのエントリの読み込みに失敗しました: {}", e))?;
         let path = entry
             .path()
             .map_err(|e| format!("パスの取得に失敗しました: {}", e))?
             .to_path_buf();
+        tx.send(ProgressMsg { value: (idx as f32)/(total as f32), text: path.display().to_string(), done: false }).ok();
+        fltk::app::awake();
+
+        //add delay
+        std::thread::sleep(std::time::Duration::from_millis(100));
 
         if path.components().count() < 2 {
-            println!("ignore: {}", path.display());
             continue;
         }
 
@@ -71,8 +72,6 @@ pub fn extract_objects(
         } else {
             "".to_string()
         };
-        progress.set_progress(idx, &file_name);
-        idx += 1;
 
         if file_name == ASSET_META_FILENAME || file_name == PATHNAME_FILENAME {
             let mut string_entry = String::new();
@@ -100,7 +99,6 @@ pub fn extract_objects(
             .map_err(|e| format!("ファイルの作成に失敗しました: {}", e))?;
         std::io::copy(&mut entry, &mut outfile).map_err(|e| format!("ファイルの書き込みに失敗しました: {}", e))?;
     }
-    progress.set_progress(total, "完了");
 
     Ok(())
 }

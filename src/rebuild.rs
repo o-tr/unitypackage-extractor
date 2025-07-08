@@ -1,29 +1,29 @@
 use crate::dialog::confirm_overwrite;
 use crate::extract::{ASSET_META_FILENAME, PATHNAME_FILENAME};
-use crate::progress_window::ProgressWindow;
 use yaml_rust::{YamlLoader};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
+use std::sync::mpsc::Sender;
+use crate::progress_window::ProgressMsg;
 
 pub fn rebuild_objects(
     objects: &HashMap<String, HashMap<String, String>>,
     output_dir: &Path,
     source_dir: &Path,
-    progress: &ProgressWindow,
+    tx: &Sender<ProgressMsg>,
 ) -> Result<(), String> {
-    let total = objects.len() as u32;
-    progress.set_range(0, total);
+    let total = objects.len() as f32;
+    tx.send(ProgressMsg { value: 0.0, text: "開始".to_string(), done: false }).ok();
     let mut idx = 0u32;
     for (folder, files) in objects {
-        if progress.is_cancelled() {
-            return Err("ユーザーにより中断されました".to_string());
-        }
+        idx += 1;
         let pathname = files.get(PATHNAME_FILENAME).ok_or("pathnameが見つかりません")?;
         let asset_meta = files.get(ASSET_META_FILENAME).ok_or("asset.metaが見つかりません")?;
-        progress.set_progress(idx, pathname);
-        idx += 1;
+        tx.send(ProgressMsg { value: idx as f32 /total , text: pathname.clone(), done: false }).ok();
+        fltk::app::awake();
+        std::thread::sleep(std::time::Duration::from_millis(100));
 
         let asset_meta_yaml = YamlLoader::load_from_str(asset_meta)
             .map_err(|e| format!("{}のmetaファイルのパースに失敗しました: {}", pathname, e))?;
@@ -79,6 +79,6 @@ pub fn rebuild_objects(
         std::fs::rename(source_file_path, output_file_path)
             .map_err(|e| format!("Failed to rename source file to output file: {}", e))?;
     }
-    progress.set_progress(total, "完了");
+    tx.send(ProgressMsg { value: total, text: "完了".to_string(), done: true }).ok();
     Ok(())
 }

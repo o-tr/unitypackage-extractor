@@ -1,80 +1,61 @@
 // 進捗状況を表示するウィンドウ（7zip風ダイアログ）
-// Windows向け。native-windows-gui (nwg) を利用
+// クロスプラットフォーム対応: fltk-rs を利用
 
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
-use native_windows_gui as nwg;
+use std::sync::mpsc::Receiver;
+use fltk::{app, button::Button, frame::Frame, prelude::*, window::Window, group::Pack, misc::Progress};
 
 pub struct ProgressWindow {
-    window: nwg::Window,
-    progress_bar: nwg::ProgressBar,
-    label: nwg::Label,
+    app: app::App,
+    window: Window,
+    progress_bar: Progress,
+    label: Frame,
     #[allow(dead_code)]
-    cancel_btn: nwg::Button,
+    cancel_btn: Button,
     cancelled: Arc<AtomicBool>,
 }
 
+pub struct ProgressMsg {
+    pub value: f32,
+    pub text: String,
+    pub done: bool,
+}
+
 impl ProgressWindow {
-    pub fn new(title: &str, max: u32) -> Self {
-        nwg::init().expect("Failed to init NWG");
-        let mut window = nwg::Window::default();
-        let mut progress_bar = nwg::ProgressBar::default();
-        let mut label = nwg::Label::default();
-        let mut cancel_btn = nwg::Button::default();
+    pub fn new(title: &str) -> Self {
+        let app = app::App::default();
+        let mut window = Window::new(300, 300, 400, 120, title);
+        let mut pack = Pack::new(20, 10, 360, 90, "");
+        pack.set_spacing(10);
+        let label = Frame::new(0, 0, 360, 20, "");
+        let mut progress_bar = Progress::new(0, 0, 360, 20, "");
+        progress_bar.set_selection_color(fltk::enums::Color::Green);
+        progress_bar.set_color(fltk::enums::Color::White);
+        progress_bar.set_minimum(0.0);
+        progress_bar.set_maximum(1.0);
+        progress_bar.set_value(0.0);
+        let mut cancel_btn = Button::new(140, 0, 80, 30, "キャンセル");
+        pack.end();
+        window.end();
+        window.show();
         let cancelled = Arc::new(AtomicBool::new(false));
-        nwg::Window::builder()
-            .size((400, 120))
-            .position((300, 300))
-            .title(title)
-            .build(&mut window)
-            .unwrap();
-        nwg::ProgressBar::builder()
-            .parent(&window)
-            .size((360, 20))
-            .position((20, 40))
-            .range(0..max)
-            .build(&mut progress_bar)
-            .unwrap();
-        nwg::Label::builder()
-            .parent(&window)
-            .text("")
-            .size((360, 20))
-            .position((20, 10))
-            .build(&mut label)
-            .unwrap();
-        nwg::Button::builder()
-            .parent(&window)
-            .text("キャンセル")
-            .size((80, 30))
-            .position((160, 70))
-            .build(&mut cancel_btn)
-            .unwrap();
-        // ウィンドウのクローズイベントでキャンセルフラグを立てる
-        {
-            let cancelled_clone = Arc::clone(&cancelled);
-            let _handler = nwg::full_bind_event_handler(&window.handle, move |evt, _evt_data, _handle| {
-                match evt {
-                    nwg::Event::OnWindowClose => {
-                        cancelled_clone.store(true, Ordering::SeqCst);
-                        nwg::stop_thread_dispatch();
-                    }
-                    _ => {}
-                }
-            });
-        }
         // キャンセルボタン押下時のイベント
         {
             let cancelled_clone = Arc::clone(&cancelled);
-            let _handler = nwg::full_bind_event_handler(&cancel_btn.handle, move |evt, _evt_data, _handle| {
-                match evt {
-                    nwg::Event::OnButtonClick => {
-                        cancelled_clone.store(true, Ordering::SeqCst);
-                    }
-                    _ => {}
-                }
+            cancel_btn.set_callback(move |_| {
+                cancelled_clone.store(true, Ordering::SeqCst);
             });
         }
-        window.set_visible(true);
+        // ウィンドウのクローズイベントでキャンセルフラグを立てる
+        {
+            let cancelled_clone = Arc::clone(&cancelled);
+            window.set_callback(move |_| {
+                cancelled_clone.store(true, Ordering::SeqCst);
+                app::quit();
+            });
+        }
         Self {
+            app,
             window,
             progress_bar,
             label,
@@ -82,17 +63,38 @@ impl ProgressWindow {
             cancelled,
         }
     }
-    pub fn set_progress(&self, value: u32, text: &str) {
-        self.progress_bar.set_pos(value);
-        self.label.set_text(text);
+    pub fn set_progress(&mut self, value: f32, text: &str) {
+        self.progress_bar.set_value(value as f64);
+        self.label.set_label(text);
+        // app::awake();
     }
     pub fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::SeqCst)
     }
-    pub fn close(&self) {
-        self.window.set_visible(false);
+    pub fn close(&mut self) {
+        self.window.hide();
+        self.app.quit();
     }
-    pub fn set_range(&self, min: u32, max: u32) {
-        self.progress_bar.set_range(min..max);
+    pub fn run_loop(&mut self, rx: Receiver<ProgressMsg>) {
+        loop {
+            match rx.try_recv() {
+                Ok(msg) => {
+                    if msg.done {
+                        break;
+                    }
+                    println!("progress: {}%, {}", (msg.value * 100.0) as u32, msg.text);
+                    self.set_progress(msg.value, &msg.text);
+                },
+                Err(std::sync::mpsc::TryRecvError::Empty) => {},
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    break;
+                }
+            }
+            if !self.window.shown() || self.is_cancelled() {
+                break;
+            }
+            self.app.wait();
+        }
+        self.close();
     }
 }

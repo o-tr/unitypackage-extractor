@@ -1,6 +1,0 @@
-Windows Registry Editor Version 5.00
-
-[HKEY_CLASSES_ROOT\SystemFileAssociations\.unitypackage\shell\unitypackage-extractor]
-@="unitypackage-extractor‚Å“WŠJ"
-[HKEY_CLASSES_ROOT\SystemFileAssociations\.unitypackage\shell\unitypackage-extractor\command]
-@="\"C:\\Program Files\\unitypackage-extractor\\unitypackage-extractor.exe\" \"%1\""

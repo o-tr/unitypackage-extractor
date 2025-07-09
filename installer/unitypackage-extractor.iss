@@ -14,10 +14,10 @@ Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 
 [Files]
 Source: "..\target\x86_64-pc-windows-msvc\release\unitypackage-extractor.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "install.reg"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\アンインストール"; Filename: "{uninstallexe}"
 
-[Run]
-Filename: "regedit.exe"; Parameters: "/s ""{app}\\install.reg"""; Flags: runhidden
+[Registry]
+Root: HKCR; Subkey: "SystemFileAssociations\.unitypackage\shell\unitypackage-extractor"; ValueType: string; ValueName: ""; ValueData: "unitypackage-extractorで展開"; Flags: uninsdeletekey
+Root: HKCR; Subkey: "SystemFileAssociations\.unitypackage\shell\unitypackage-extractor\command"; ValueType: string; ValueName: ""; ValueData: '"{app}\unitypackage-extractor.exe" "%1"'; Flags: uninsdeletekey

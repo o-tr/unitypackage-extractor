@@ -17,7 +17,6 @@ Source: "..\target\x86_64-pc-windows-msvc\release\unitypackage-extractor.exe"; D
 Source: "install.reg"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\unitypackage-extractor"; Filename: "{app}\unitypackage-extractor.exe"
 Name: "{group}\アンインストール"; Filename: "{uninstallexe}"
 
 [Run]

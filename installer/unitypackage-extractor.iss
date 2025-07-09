@@ -20,4 +20,4 @@ Name: "{group}\アンインストール"; Filename: "{uninstallexe}"
 
 [Registry]
 Root: HKCR; Subkey: "SystemFileAssociations\.unitypackage\shell\unitypackage-extractor"; ValueType: string; ValueName: ""; ValueData: "unitypackage-extractorで展開"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "SystemFileAssociations\.unitypackage\shell\unitypackage-extractor\command"; ValueType: string; ValueName: ""; ValueData: '"{app}\unitypackage-extractor.exe" "%1"'; Flags: uninsdeletekey
+Root: HKCR; Subkey: "SystemFileAssociations\.unitypackage\shell\unitypackage-extractor\command"; ValueType: string; ValueName: ""; ValueData: """{app}\unitypackage-extractor.exe"" ""%1"""; Flags: uninsdeletekey

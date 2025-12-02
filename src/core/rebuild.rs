@@ -207,8 +207,11 @@ fn find_unique_name(base_path: &Path, original_name: &str) -> String {
             format!("{}_copy{}", original_name, count)
         };
 
-        let test_path = parent.join(format!("{}.meta", new_name));
-        if !test_path.exists() {
+        // Asset と meta の両方を確認する
+        let asset_path = parent.join(&new_name);
+        let meta_path = parent.join(format!("{}.meta", new_name));
+
+        if !asset_path.exists() && !meta_path.exists() {
             return new_name;
         }
         count += 1;

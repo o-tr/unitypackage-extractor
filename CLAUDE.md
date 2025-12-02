@@ -97,3 +97,7 @@ rebuild.rs:64-133で実装される上書き確認処理:
 - 既存ファイルの上書き確認は必須
 - 処理完了後は必ず一時ディレクトリをクリーンアップ
 - マルチスレッド処理時は`fltk::app::awake()`でUI更新を通知
+
+# ExecPlans
+
+When writing complex features or significant refactors, use an ExecPlan (as described in .agent/PLANS.md) from design to implementation.

@@ -14,7 +14,13 @@ impl Args {
 
         let mut input_file: Option<PathBuf> = None;
         let mut output_dir: Option<PathBuf> = None;
+
+        // デフォルト値: GUI版はAsk、CLI版はRename
+        #[cfg(feature = "gui")]
         let mut overwrite_mode = OverwriteMode::Ask;
+
+        #[cfg(not(feature = "gui"))]
+        let mut overwrite_mode = OverwriteMode::Rename;
 
         let mut i = 1;
         while i < args.len() {
@@ -66,6 +72,15 @@ impl Args {
         if output_dir.is_none() {
             return Err(format!(
                 "--output-dir is required in CLI mode\n\n{}",
+                Self::usage(&args[0])
+            ));
+        }
+
+        // CLI版では Ask モードを明示的に拒否
+        #[cfg(not(feature = "gui"))]
+        if overwrite_mode == OverwriteMode::Ask {
+            return Err(format!(
+                "Error: --overwrite-mode=ask is not supported in CLI mode.\nPlease use: overwrite, skip, or rename.\n\n{}",
                 Self::usage(&args[0])
             ));
         }

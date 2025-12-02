@@ -1,6 +1,7 @@
 use crate::args::Args;
 use crate::core::{extract_objects, rebuild_objects};
 use crate::ui::gui::{GuiProgressHandler, ProgressWindow, pick_output_dir};
+use crate::ui::UiHandler;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::path::Path;
@@ -35,29 +36,80 @@ pub fn run() -> Result<(), String> {
     let objects = Arc::new(Mutex::new(HashMap::new()));
     let objects_clone = Arc::clone(&objects);
 
+    // ワーカーの結果を共有するための変数
+    let worker_result: Arc<Mutex<Option<Result<(), String>>>> = Arc::new(Mutex::new(None));
+    let worker_result_clone = Arc::clone(&worker_result);
+
     let input_file = input_file.to_path_buf();
     let tmp_output_dir_clone = tmp_output_dir.clone();
     let output_dir_clone = output_dir.clone();
 
     // 処理スレッド起動
     std::thread::spawn(move || {
-        let mut objects = objects_clone.lock().unwrap();
-        let _ = extract_objects(&input_file, &tmp_output_dir_clone, &mut *objects, &mut ui_handler);
-        let _ = rebuild_objects(&objects, &output_dir_clone, &tmp_output_dir_clone, &mut ui_handler);
+        let result = (|| -> Result<(), String> {
+            let mut objects = objects_clone.lock().unwrap();
+
+            // extractionを実行
+            extract_objects(&input_file, &tmp_output_dir_clone, &mut *objects, &mut ui_handler)?;
+
+            // キャンセルチェック
+            if ui_handler.is_cancelled() {
+                return Err("キャンセルされました".to_string());
+            }
+
+            // rebuildを実行
+            rebuild_objects(&objects, &output_dir_clone, &tmp_output_dir_clone, &mut ui_handler)?;
+
+            Ok(())
+        })();
+
+        // 結果を共有メモリに保存
+        *worker_result_clone.lock().unwrap() = Some(result);
     });
 
     println!("解凍を開始します");
     progress.run_loop(rx);
-    println!("解凍が完了しました。");
 
-    // クリーンアップ
+    // ワーカーの結果を確認
+    let result = worker_result.lock().unwrap().take();
+    let (success, was_cancelled) = match result {
+        Some(Ok(())) => {
+            println!("解凍が完了しました。");
+            (true, false)
+        }
+        Some(Err(e)) => {
+            // キャンセルとエラーを区別
+            let is_cancelled = e.contains("キャンセルされました");
+
+            if is_cancelled {
+                println!("処理がキャンセルされました。");
+            } else {
+                use rfd::MessageDialog;
+                MessageDialog::new()
+                    .set_title("エラー")
+                    .set_description(&format!("処理中にエラーが発生しました: {}", e))
+                    .show();
+                eprintln!("エラー: {}", e);
+            }
+            (false, is_cancelled)
+        }
+        None => {
+            eprintln!("警告: ワーカースレッドの結果が取得できませんでした");
+            (false, false)
+        }
+    };
+
+    // クリーンアップ（常に実行）
     if tmp_output_dir.exists() {
-        std::fs::remove_dir_all(&tmp_output_dir)
-            .map_err(|e| format!("一時ディレクトリの削除に失敗しました: {}", e))?;
+        if let Err(e) = std::fs::remove_dir_all(&tmp_output_dir) {
+            eprintln!("警告: 一時ディレクトリの削除に失敗しました: {}", e);
+        }
     }
 
-    // ディレクトリを開く
-    open_directory(&output_dir)?;
+    // 成功時またはキャンセル時にディレクトリを開く
+    if success || was_cancelled {
+        open_directory(&output_dir)?;
+    }
 
     Ok(())
 }

@@ -1,27 +1,85 @@
-name: release
+name: Create Release
 
 on:
   workflow_dispatch:
-  push:
-    branches-ignore:
-      - "**"
-    tags:
-      - "v*"
-
+    inputs:
+      release_type:
+        description: 'Release Type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: 'patch'
 
 jobs:
-  build-and-publish-windows-installer:
-    runs-on: windows-latest
-
+  create-release:
+    runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
+    outputs:
+      tag_name: ${{ steps.set_outputs.outputs.tag_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Get tag name
-        id: get_tag
-        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+      - name: Configure Git
+        run: |
+          git config --global user.name 'GitHub Actions'
+          git config --global user.email 'actions@github.com'
+
+      - name: Calculate new version from latest tag
+        id: calc_version
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 既存の最新タグを取得（ない場合はv0.0.0から開始）
+          if git describe --tags --abbrev=0 >/dev/null 2>&1; then
+            latest_tag=$(git describe --tags --abbrev=0)
+          else
+            latest_tag="v0.0.0"
+          fi
+          echo "Latest tag: ${latest_tag}"
+          base=${latest_tag#v}
+          IFS='.' read -r major minor patch <<<"${base}"
+          case "${{ github.event.inputs.release_type }}" in
+            major)
+              major=$((major + 1)); minor=0; patch=0 ;;
+            minor)
+              minor=$((minor + 1)); patch=0 ;;
+            *)
+              patch=$((patch + 1)) ;;
+          esac
+          new_tag="v${major}.${minor}.${patch}"
+          echo "New tag: ${new_tag}"
+          echo "new_tag=${new_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git tag -a "${{ steps.calc_version.outputs.new_tag }}" -m "Release ${{ steps.calc_version.outputs.new_tag }}"
+          git push origin "${{ steps.calc_version.outputs.new_tag }}"
+
+      - name: Set job outputs
+        id: set_outputs
+        run: echo "tag_name=${{ steps.calc_version.outputs.new_tag }}" >> $GITHUB_OUTPUT
+
+  build-and-publish-windows-installer:
+    runs-on: windows-latest
+    needs: create-release
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository at release tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.create-release.outputs.tag_name }}
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -48,16 +106,15 @@ jobs:
 
   build-and-publish-linux-cli:
     runs-on: ubuntu-latest
-
+    needs: create-release
     permissions:
       contents: write
     steps:
-      - name: Checkout repository
+      - name: Checkout repository at release tag
         uses: actions/checkout@v4
-
-      - name: Get tag name
-        id: get_tag
-        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.create-release.outputs.tag_name }}
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -76,11 +133,12 @@ jobs:
           name: unitypackage-extractor-linux-x86_64
           path: dist/unitypackage-extractor-linux-x86_64
 
-  create-release:
+  attach-assets:
     runs-on: ubuntu-latest
     needs:
       - build-and-publish-windows-installer
       - build-and-publish-linux-cli
+      - create-release
     permissions:
       contents: write
     steps:
@@ -99,10 +157,13 @@ jobs:
           name: unitypackage-extractor-linux-x86_64
           path: release_assets
 
-      - name: Create GitHub Release (publish with auto notes)
+      - name: Create Release and attach assets (publish with auto notes)
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.create-release.outputs.tag_name }}
+          name: Release ${{ needs.create-release.outputs.tag_name }}
           draft: false
+          prerelease: false
           generate_release_notes: true
           files: |
             release_assets/unitypackage-extractor-installer.exe

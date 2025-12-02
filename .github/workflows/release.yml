@@ -103,6 +103,7 @@ jobs:
         with:
           name: unitypackage-extractor-installer
           path: "./installer/Output/unitypackage-extractor-installer.exe"
+          if-no-files-found: error
 
   build-and-publish-linux-cli:
     runs-on: ubuntu-latest
@@ -132,6 +133,7 @@ jobs:
         with:
           name: unitypackage-extractor-linux-x86_64
           path: dist/unitypackage-extractor-linux-x86_64
+          if-no-files-found: error
 
   attach-assets:
     runs-on: ubuntu-latest
@@ -146,16 +148,24 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download Windows installer artifact
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v5
         with:
           name: unitypackage-extractor-installer
           path: release_assets
 
       - name: Download Linux CLI artifact
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v5
         with:
           name: unitypackage-extractor-linux-x86_64
           path: release_assets
+
+      - name: Generate SHA256 checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release_assets
+          sha256sum unitypackage-extractor-installer.exe > unitypackage-extractor-installer.exe.sha256
+          sha256sum unitypackage-extractor-linux-x86_64 > unitypackage-extractor-linux-x86_64.sha256
 
       - name: Create Release and attach assets (publish with auto notes)
         uses: softprops/action-gh-release@v2
@@ -167,6 +177,8 @@ jobs:
           generate_release_notes: true
           files: |
             release_assets/unitypackage-extractor-installer.exe
+            release_assets/unitypackage-extractor-installer.exe.sha256
             release_assets/unitypackage-extractor-linux-x86_64
+            release_assets/unitypackage-extractor-linux-x86_64.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

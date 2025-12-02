@@ -5,7 +5,13 @@ edition = "2024"
 
 [dependencies]
 flate2 = "1.0"
-rfd = "0.15"
 tar = "0.4"
 yaml-rust = "0.4"
-fltk = "1"
+
+# GUI版のみで必要
+rfd = { version = "0.15", optional = true }
+fltk = { version = "1", optional = true, features = ["fltk-bundled"] }
+
+[features]
+default = []
+gui = ["fltk", "rfd"]

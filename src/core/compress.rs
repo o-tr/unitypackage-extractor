@@ -109,7 +109,7 @@ fn collect_entries_recursive<U: UiHandler>(
 
         if path.is_dir() {
             // ディレクトリの場合
-            let meta_path = path.with_extension("meta");
+            let meta_path = PathBuf::from(format!("{}.meta", path.display()));
 
             if !meta_path.exists() {
                 println!("警告: ディレクトリのmetaファイルが見つかりません（スキップ）: {}", path.display());
@@ -240,4 +240,3 @@ fn add_entry_to_archive(
 
     Ok(())
 }
-

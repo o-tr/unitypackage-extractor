@@ -2,6 +2,7 @@ use crate::args::Args;
 use crate::core::{extract_objects, rebuild_objects};
 use crate::ui::cli::CliProgressHandler;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 const TMP_OUTPUT_DIR: &str = ".jp.ootr.unitypackage-extractor";
 
@@ -22,6 +23,21 @@ pub fn run() -> Result<(), String> {
             .map_err(|e| format!("一時ディレクトリの削除に失敗しました: {}", e))?;
     }
 
+    // 失敗時も含めて確実に一時ディレクトリを削除するためのガード
+    struct TempDirGuard {
+        path: PathBuf,
+    }
+    impl Drop for TempDirGuard {
+        fn drop(&mut self) {
+            if self.path.exists() {
+                if let Err(e) = std::fs::remove_dir_all(&self.path) {
+                    eprintln!("警告: 一時ディレクトリの削除に失敗しました: {}", e);
+                }
+            }
+        }
+    }
+    let _tmp_guard = TempDirGuard { path: tmp_output_dir.clone() };
+
     println!("解凍を開始します: {} -> {}", input_file.display(), output_dir.display());
 
     let mut objects = HashMap::new();
@@ -33,11 +49,7 @@ pub fn run() -> Result<(), String> {
     // 再構築
     rebuild_objects(&objects, &output_dir, &tmp_output_dir, &mut ui_handler)?;
 
-    // クリーンアップ
-    if tmp_output_dir.exists() {
-        std::fs::remove_dir_all(&tmp_output_dir)
-            .map_err(|e| format!("一時ディレクトリの削除に失敗しました: {}", e))?;
-    }
+    // 明示的なクリーンアップは不要（Dropガードで常に削除される）
 
     println!("解凍が完了しました。");
 

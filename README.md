@@ -32,12 +32,17 @@ unitypackage-extractor.exe compress ./Assets/MyPackage output.unitypackage
 
 # または --output オプションを使用
 unitypackage-extractor.exe compress ./Assets/MyPackage --output output.unitypackage
+
+# プロジェクトルートを指定（相対パスの基準を変更）
+# この場合、パッケージ内では "MyPackage/" として配置される
+unitypackage-extractor.exe compress ./MyUnityProject/Assets/MyPackage output.unitypackage --project-root ./MyUnityProject/Assets
 ```
 
 **注意事項:**
 - 圧縮モードでは、各アセットファイルに対応する`.meta`ファイルが必須です
 - `.meta`ファイルが存在しないファイル/ディレクトリは警告が表示され、スキップされます
 - `.meta`ファイルから既存のGUIDを読み取り、パッケージに含めます
+- `--project-root`を指定しない場合、入力ディレクトリの親ディレクトリが基準となります
 
 
 ## 開発

@@ -10,10 +10,18 @@ use yaml_rust::YamlLoader;
 pub fn compress_directory<U: UiHandler>(
     input_dir: &Path,
     output_file: &Path,
+    project_root: Option<&Path>,
     ui_handler: &mut U,
 ) -> Result<(), String> {
+    // プロジェクトルートの決定
+    let base_dir = if let Some(root) = project_root {
+        root
+    } else {
+        input_dir.parent().unwrap_or(input_dir)
+    };
+
     // 入力ディレクトリ内のアセットファイルとmetaファイルを収集
-    let entries = collect_entries(input_dir, ui_handler)?;
+    let entries = collect_entries(input_dir, base_dir, ui_handler)?;
 
     if entries.is_empty() {
         return Err("圧縮対象のファイルが見つかりませんでした".to_string());
@@ -64,12 +72,13 @@ struct ArchiveEntry {
 /// 入力ディレクトリから圧縮対象のエントリを収集
 fn collect_entries<U: UiHandler>(
     input_dir: &Path,
+    base_dir: &Path,
     ui_handler: &mut U,
 ) -> Result<Vec<ArchiveEntry>, String> {
     let mut entries = Vec::new();
 
     // ディレクトリを再帰的に走査
-    collect_entries_recursive(input_dir, input_dir, &mut entries, ui_handler)?;
+    collect_entries_recursive(base_dir, input_dir, &mut entries, ui_handler)?;
 
     Ok(entries)
 }
@@ -107,49 +116,48 @@ fn collect_entries_recursive<U: UiHandler>(
             continue;
         }
 
-        if path.is_dir() {
-            // ディレクトリの場合
-            let meta_path = PathBuf::from(format!("{}.meta", path.display()));
+        // .metaファイルを確認
+        let meta_path = PathBuf::from(format!("{}.meta", path.display()));
 
-            if !meta_path.exists() {
+        if !meta_path.exists() {
+            if path.is_dir() {
                 println!("警告: ディレクトリのmetaファイルが見つかりません（スキップ）: {}", path.display());
-                // ディレクトリ内を再帰的に走査
+                // metaがなくてもディレクトリ内を再帰的に走査
                 collect_entries_recursive(base_dir, &path, entries, ui_handler)?;
-                continue;
+            } else {
+                println!("警告: ファイルのmetaファイルが見つかりません（スキップ）: {}", path.display());
             }
+            continue;
+        }
 
-            // metaファイルからGUIDを読み取る
-            let meta_content = std::fs::read_to_string(&meta_path)
-                .map_err(|e| format!("metaファイルの読み込みに失敗しました: {}", e))?;
+        // metaファイルからGUIDを読み取る
+        let meta_content = std::fs::read_to_string(&meta_path)
+            .map_err(|e| format!("metaファイルの読み込みに失敗しました: {}", e))?;
 
-            let guid = extract_guid_from_meta(&meta_content)?;
-            let pathname = get_relative_path(base_dir, &path)?;
+        let guid = extract_guid_from_meta(&meta_content)?;
+        let pathname = get_relative_path(base_dir, &path)?;
 
+        // フォルダかどうかの判定:
+        // 1. ファイルシステム上でディレクトリである
+        // 2. metaファイルにfolderAsset: yesがある
+        let is_folder_by_fs = path.is_dir();
+        let is_folder_by_meta = check_folder_asset_in_meta(&meta_content);
+        let is_folder = is_folder_by_fs || is_folder_by_meta;
+
+        if is_folder {
             entries.push(ArchiveEntry {
                 guid,
                 pathname,
-                asset_path: None, // ディレクトリの場合はassetファイルなし
+                asset_path: None,
                 meta_content,
             });
 
-            // ディレクトリ内を再帰的に走査
-            collect_entries_recursive(base_dir, &path, entries, ui_handler)?;
+            // ディレクトリの場合は内部を再帰的に走査
+            if is_folder_by_fs {
+                collect_entries_recursive(base_dir, &path, entries, ui_handler)?;
+            }
         } else {
             // ファイルの場合
-            let meta_path = PathBuf::from(format!("{}.meta", path.display()));
-
-            if !meta_path.exists() {
-                println!("警告: ファイルのmetaファイルが見つかりません（スキップ）: {}", path.display());
-                continue;
-            }
-
-            // metaファイルからGUIDを読み取る
-            let meta_content = std::fs::read_to_string(&meta_path)
-                .map_err(|e| format!("metaファイルの読み込みに失敗しました: {}", e))?;
-
-            let guid = extract_guid_from_meta(&meta_content)?;
-            let pathname = get_relative_path(base_dir, &path)?;
-
             entries.push(ArchiveEntry {
                 guid,
                 pathname,
@@ -229,6 +237,7 @@ fn add_entry_to_archive(
 
     // asset ファイルを追加（ファイルの場合のみ）
     if let Some(asset_path) = &entry.asset_path {
+        // ファイルの場合は実ファイルを追加
         let asset_archive_path = format!("{}/asset", guid);
 
         let mut file = File::open(asset_path)
@@ -237,6 +246,17 @@ fn add_entry_to_archive(
         tar_builder.append_file(&asset_archive_path, &mut file)
             .map_err(|e| format!("アセットファイルの追加に失敗しました: {}", e))?;
     }
+    // フォルダーの場合はassetファイルを生成しない
 
     Ok(())
+}
+
+/// metaファイルにfolderAsset: yesが含まれているか確認
+fn check_folder_asset_in_meta(meta_content: &str) -> bool {
+    if let Ok(docs) = YamlLoader::load_from_str(meta_content) {
+        if let Some(doc) = docs.get(0) {
+            return doc["folderAsset"].as_str().unwrap_or("false") == "yes";
+        }
+    }
+    false
 }

@@ -13,8 +13,8 @@ pub fn run() -> Result<(), String> {
         Command::Extract { input_file, output_dir, overwrite_mode } => {
             run_extract(input_file, output_dir.as_ref(), *overwrite_mode)
         }
-        Command::Compress { input_dir, output_file } => {
-            run_compress(input_dir, output_file)
+        Command::Compress { input_dir, output_file, project_root } => {
+            run_compress(input_dir, output_file, project_root.as_ref())
         }
     }
 }
@@ -73,6 +73,7 @@ fn run_extract(
 fn run_compress(
     input_dir: &PathBuf,
     output_file: &PathBuf,
+    project_root: Option<&PathBuf>,
 ) -> Result<(), String> {
     if !input_dir.exists() {
         return Err(format!("指定されたディレクトリが存在しません: {}", input_dir.display()));
@@ -83,12 +84,15 @@ fn run_compress(
     }
 
     println!("圧縮を開始します: {} -> {}", input_dir.display(), output_file.display());
+    if let Some(root) = project_root {
+        println!("プロジェクトルート: {}", root.display());
+    }
 
     // 圧縮モードではOverwriteModeは不要（常にRenameで良い）
     let mut ui_handler = CliProgressHandler::new(crate::ui::OverwriteMode::Rename);
 
     // 圧縮実行
-    compress_directory(input_dir, output_file, &mut ui_handler)?;
+    compress_directory(input_dir, output_file, project_root.map(|p| p.as_path()), &mut ui_handler)?;
 
     println!("圧縮が完了しました。");
 

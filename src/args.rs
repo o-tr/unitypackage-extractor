@@ -14,6 +14,7 @@ pub enum Command {
     Compress {
         input_dir: PathBuf,
         output_file: PathBuf,
+        project_root: Option<PathBuf>,
     },
 }
 
@@ -174,6 +175,7 @@ impl Args {
     fn parse_compress(args: &[String], start_idx: usize) -> Result<Self, String> {
         let mut input_dir: Option<PathBuf> = None;
         let mut output_file: Option<PathBuf> = None;
+        let mut project_root: Option<PathBuf> = None;
 
         let mut i = start_idx;
         while i < args.len() {
@@ -188,6 +190,15 @@ impl Args {
                     return Err("--output requires a value".to_string());
                 }
                 output_file = Some(PathBuf::from(&args[i]));
+            } else if arg.starts_with("--project-root=") {
+                let root = arg.strip_prefix("--project-root=").unwrap();
+                project_root = Some(PathBuf::from(root));
+            } else if arg == "--project-root" {
+                i += 1;
+                if i >= args.len() {
+                    return Err("--project-root requires a value".to_string());
+                }
+                project_root = Some(PathBuf::from(&args[i]));
             } else if arg == "--help" || arg == "-h" {
                 println!("{}", Self::usage(&args[0]));
                 std::process::exit(0);
@@ -219,6 +230,7 @@ impl Args {
             command: Command::Compress {
                 input_dir,
                 output_file,
+                project_root,
             },
         })
     }
@@ -256,16 +268,21 @@ COMPRESS MODE:
   Usage: {} compress <input-dir> --output <output.unitypackage>
 
   Arguments:
-    <input-dir>             Input directory (Unity project Assets folder or subfolder)
+    <input-dir>             Input directory to compress
     <output.unitypackage>   Output .unitypackage file
 
   Options:
     --output, -o <file>     Output .unitypackage file (alternative)
+    --project-root <dir>    Project root directory (for relative paths in package)
+                            If not specified, uses parent of input-dir
     -h, --help              Show this help message
 
   Examples:
+    # シンプルな使い方（input-dirが基準）
     {} compress ./Assets/MyPackage output.unitypackage
-    {} compress ./Assets/MyPackage --output output.unitypackage
+
+    # プロジェクトルートを指定（Assets/MyPackageの内容をMyPackage/として圧縮）
+    {} compress ./MyUnityProject/Assets/MyPackage output.unitypackage --project-root ./MyUnityProject/Assets
 ",
             program,
             program,

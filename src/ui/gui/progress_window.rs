@@ -1,7 +1,7 @@
 // 進捗状況を表示するウィンドウ（7zip風ダイアログ）
 // クロスプラットフォーム対応: fltk-rs を利用
 
-use crate::ui::{UiHandler, OverwriteAction};
+use crate::ui::{UiHandler, OverwriteAction, OverwriteMode};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use fltk::{app, button::Button, frame::Frame, prelude::*, window::Window, group::Pack, misc::Progress};
@@ -18,12 +18,13 @@ pub enum ProgressMsg {
 pub struct GuiProgressHandler {
     tx: Sender<ProgressMsg>,
     cancelled: Arc<AtomicBool>,
+    overwrite_mode: OverwriteMode,
 }
 
 impl GuiProgressHandler {
-    pub fn new(cancelled: Arc<AtomicBool>) -> (Self, Receiver<ProgressMsg>) {
+    pub fn new(cancelled: Arc<AtomicBool>, overwrite_mode: OverwriteMode) -> (Self, Receiver<ProgressMsg>) {
         let (tx, rx) = channel();
-        (Self { tx, cancelled }, rx)
+        (Self { tx, cancelled, overwrite_mode }, rx)
     }
 }
 
@@ -42,6 +43,15 @@ impl UiHandler for GuiProgressHandler {
     }
 
     fn confirm_overwrite(&mut self, path: &str) -> OverwriteAction {
+        if self.overwrite_mode != OverwriteMode::Ask {
+            return match self.overwrite_mode {
+                OverwriteMode::Overwrite => OverwriteAction::Overwrite,
+                OverwriteMode::Skip => OverwriteAction::Skip,
+                OverwriteMode::Rename => OverwriteAction::Rename,
+                OverwriteMode::Ask => unreachable!(),
+            };
+        }
+
         let (resp_tx, resp_rx) = channel();
         let _ = self.tx.send(ProgressMsg::ConfirmOverwrite {
             path: path.to_string(),
@@ -69,7 +79,7 @@ pub struct ProgressWindow {
 }
 
 impl ProgressWindow {
-    pub fn new(title: &str) -> Self {
+    pub fn new(title: &str, cancelled_flag: Arc<AtomicBool>) -> Self {
         let app = app::App::default();
         let mut window = Window::new(300, 300, 400, 120, title);
         let mut pack = Pack::new(20, 10, 360, 90, "");
@@ -85,7 +95,7 @@ impl ProgressWindow {
         pack.end();
         window.end();
         window.show();
-        let cancelled = Arc::new(AtomicBool::new(false));
+        let cancelled = cancelled_flag;
         // キャンセルボタン押下時のイベント
         {
             let cancelled_clone = Arc::clone(&cancelled);

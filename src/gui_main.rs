@@ -29,9 +29,9 @@ pub fn run() -> Result<(), String> {
             .map_err(|e| format!("一時ディレクトリの削除に失敗しました: {}", e))?;
     }
 
-    let mut progress = ProgressWindow::new("処理中...");
     let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let (mut ui_handler, rx) = GuiProgressHandler::new(Arc::clone(&cancelled));
+    let mut progress = ProgressWindow::new("処理中...", Arc::clone(&cancelled));
+    let (mut ui_handler, rx) = GuiProgressHandler::new(Arc::clone(&cancelled), args.overwrite_mode);
 
     let objects = Arc::new(Mutex::new(HashMap::new()));
     let objects_clone = Arc::clone(&objects);

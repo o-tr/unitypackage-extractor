@@ -41,15 +41,71 @@ jobs:
         run: cd installer && iscc unitypackage-extractor.iss
 
       - name: Upload Installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: unitypackage-extractor-installer
           path: "./installer/Output/unitypackage-extractor-installer.exe"
 
-      - name: Create GitHub Release (draft)
+  build-and-publish-linux-cli:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get tag name
+        id: get_tag
+        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build CLI (no GUI)
+        run: cargo build --release
+
+      - name: Prepare artifact
+        run: |
+          mkdir -p dist
+          cp target/release/unitypackage-extractor dist/unitypackage-extractor-linux-x86_64
+
+      - name: Upload CLI Artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: unitypackage-extractor-linux-x86_64
+          path: dist/unitypackage-extractor-linux-x86_64
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs:
+      - build-and-publish-windows-installer
+      - build-and-publish-linux-cli
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Windows installer artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: unitypackage-extractor-installer
+          path: release_assets
+
+      - name: Download Linux CLI artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: unitypackage-extractor-linux-x86_64
+          path: release_assets
+
+      - name: Create GitHub Release (publish with auto notes)
         uses: softprops/action-gh-release@v2
         with:
-          draft: true
-          files: ./installer/Output/unitypackage-extractor-installer.exe
+          draft: false
+          generate_release_notes: true
+          files: |
+            release_assets/unitypackage-extractor-installer.exe
+            release_assets/unitypackage-extractor-linux-x86_64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -153,9 +153,30 @@ fn handle_file<U: UiHandler>(
                 &final_output_file_path.file_name().unwrap().to_string_lossy()
             );
 
-            if matches!(action, OverwriteAction::Skip) {
-                println!("スキップ: {}", final_output_file_path.display());
-                return Ok(());
+            match action {
+                OverwriteAction::Overwrite => {
+                    // そのまま上書き（既存の挙動）
+                }
+                OverwriteAction::Rename => {
+                    // ユニーク名を生成
+                    let file_name = final_output_file_path.file_name().unwrap().to_string_lossy();
+                    let new_name = find_unique_name(&final_output_file_path, &file_name);
+
+                    // meta fileも既に書き込まれている場合、一緒にリネーム
+                    let old_meta_path = final_output_file_path.parent().unwrap().join(format!("{}.meta", file_name));
+                    if old_meta_path.exists() {
+                        let new_meta_path = final_output_file_path.parent().unwrap().join(format!("{}.meta", new_name));
+                        std::fs::rename(&old_meta_path, &new_meta_path)
+                            .map_err(|e| format!("Failed to rename meta file: {}", e))?;
+                    }
+
+                    // asset fileのパスを更新
+                    final_output_file_path = final_output_file_path.parent().unwrap().join(new_name);
+                }
+                OverwriteAction::Skip => {
+                    println!("スキップ: {}", final_output_file_path.display());
+                    return Ok(());
+                }
             }
         }
 

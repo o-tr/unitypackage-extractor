@@ -45,7 +45,7 @@ pub fn run() -> Result<(), String> {
     let output_dir_clone = output_dir.clone();
 
     // 処理スレッド起動
-    std::thread::spawn(move || {
+    let worker_handle = std::thread::spawn(move || {
         let result = (|| -> Result<(), String> {
             let mut objects = objects_clone.lock().unwrap();
 
@@ -69,6 +69,9 @@ pub fn run() -> Result<(), String> {
 
     println!("解凍を開始します");
     progress.run_loop(rx);
+
+    // ワーカースレッドの完了を待機
+    worker_handle.join().expect("Worker thread panicked");
 
     // ワーカーの結果を確認
     let result = worker_result.lock().unwrap().take();

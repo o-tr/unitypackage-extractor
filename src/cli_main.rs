@@ -1,5 +1,5 @@
-use crate::args::Args;
-use crate::core::{extract_objects, rebuild_objects};
+use crate::args::{Args, Command};
+use crate::core::{extract_objects, rebuild_objects, compress_directory};
 use crate::ui::cli::CliProgressHandler;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -9,12 +9,26 @@ const TMP_OUTPUT_DIR: &str = ".jp.ootr.unitypackage-extractor";
 pub fn run() -> Result<(), String> {
     let args = Args::parse()?;
 
-    let input_file = &args.input_file;
+    match &args.command {
+        Command::Extract { input_file, output_dir, overwrite_mode } => {
+            run_extract(input_file, output_dir.as_ref(), *overwrite_mode)
+        }
+        Command::Compress { input_dir, output_file } => {
+            run_compress(input_dir, output_file)
+        }
+    }
+}
+
+fn run_extract(
+    input_file: &PathBuf,
+    output_dir: Option<&PathBuf>,
+    overwrite_mode: crate::ui::OverwriteMode,
+) -> Result<(), String> {
     if !input_file.exists() {
         return Err(format!("指定されたファイルが存在しません: {}", input_file.display()));
     }
 
-    let output_dir = args.output_dir
+    let output_dir = output_dir
         .ok_or_else(|| "--output-dir is required in CLI mode".to_string())?;
 
     let tmp_output_dir = output_dir.join(TMP_OUTPUT_DIR);
@@ -41,7 +55,7 @@ pub fn run() -> Result<(), String> {
     println!("解凍を開始します: {} -> {}", input_file.display(), output_dir.display());
 
     let mut objects = HashMap::new();
-    let mut ui_handler = CliProgressHandler::new(args.overwrite_mode);
+    let mut ui_handler = CliProgressHandler::new(overwrite_mode);
 
     // 抽出
     extract_objects(input_file, &tmp_output_dir, &mut objects, &mut ui_handler)?;
@@ -55,3 +69,29 @@ pub fn run() -> Result<(), String> {
 
     Ok(())
 }
+
+fn run_compress(
+    input_dir: &PathBuf,
+    output_file: &PathBuf,
+) -> Result<(), String> {
+    if !input_dir.exists() {
+        return Err(format!("指定されたディレクトリが存在しません: {}", input_dir.display()));
+    }
+
+    if !input_dir.is_dir() {
+        return Err(format!("指定されたパスはディレクトリではありません: {}", input_dir.display()));
+    }
+
+    println!("圧縮を開始します: {} -> {}", input_dir.display(), output_file.display());
+
+    // 圧縮モードではOverwriteModeは不要（常にRenameで良い）
+    let mut ui_handler = CliProgressHandler::new(crate::ui::OverwriteMode::Rename);
+
+    // 圧縮実行
+    compress_directory(input_dir, output_file, &mut ui_handler)?;
+
+    println!("圧縮が完了しました。");
+
+    Ok(())
+}
+

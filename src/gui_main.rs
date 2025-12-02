@@ -1,4 +1,4 @@
-use crate::args::Args;
+use crate::args::{Args, Command};
 use crate::core::{extract_objects, rebuild_objects};
 use crate::ui::gui::{GuiProgressHandler, ProgressWindow, pick_output_dir};
 use crate::ui::UiHandler;
@@ -11,13 +11,28 @@ const TMP_OUTPUT_DIR: &str = ".jp.ootr.unitypackage-extractor";
 pub fn run() -> Result<(), String> {
     let args = Args::parse()?;
 
-    let input_file = &args.input_file;
+    // GUI版は現在extractのみサポート
+    match &args.command {
+        Command::Extract { input_file, output_dir, overwrite_mode } => {
+            run_extract(input_file, output_dir.as_ref(), *overwrite_mode)
+        }
+        Command::Compress { .. } => {
+            Err("GUI版ではcompressコマンドはサポートされていません。CLI版を使用してください。".to_string())
+        }
+    }
+}
+
+fn run_extract(
+    input_file: &std::path::PathBuf,
+    output_dir: Option<&std::path::PathBuf>,
+    overwrite_mode: crate::ui::OverwriteMode,
+) -> Result<(), String> {
     if !input_file.exists() {
         return Err(format!("指定されたファイルが存在しません: {}", input_file.display()));
     }
 
-    let output_dir = if let Some(dir) = args.output_dir {
-        dir
+    let output_dir = if let Some(dir) = output_dir {
+        dir.clone()
     } else {
         let dir_str = pick_output_dir(input_file)?;
         std::path::PathBuf::from(dir_str)
@@ -31,7 +46,7 @@ pub fn run() -> Result<(), String> {
 
     let cancelled = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let mut progress = ProgressWindow::new("処理中...", Arc::clone(&cancelled));
-    let (mut ui_handler, rx) = GuiProgressHandler::new(Arc::clone(&cancelled), args.overwrite_mode);
+    let (mut ui_handler, rx) = GuiProgressHandler::new(Arc::clone(&cancelled), overwrite_mode);
 
     let objects = Arc::new(Mutex::new(HashMap::new()));
     let objects_clone = Arc::clone(&objects);

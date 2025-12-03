@@ -36,11 +36,18 @@ pub fn rebuild_objects<U: UiHandler>(
             .map_err(|e| format!("{}のmetaファイルのパースに失敗しました: {}", pathname, e))?;
         let asset_meta_yaml = asset_meta_yaml.get(0)
             .ok_or("metaファイルのルートが見つかりません")?;
-        let is_dir = asset_meta_yaml["folderAsset"].as_str().unwrap_or("false") == "yes";
-
+        
         let source_file_path = source_dir.join(&folder);
 
-        if is_dir || !source_file_path.exists() {
+        // フォルダかどうかの判定:
+        // 1. metaファイルにfolderAsset: yesがある
+        // 2. source_file_pathが存在しない（フォルダアセットは空ファイルなので展開時に存在しない）
+        // 3. source_file_pathがディレクトリとして存在する
+        let is_folder_by_meta = asset_meta_yaml["folderAsset"].as_str().unwrap_or("false") == "yes";
+        let is_folder_by_fs = source_file_path.exists() && source_file_path.is_dir();
+        let is_dir = is_folder_by_meta || !source_file_path.exists() || is_folder_by_fs;
+
+        if is_dir {
             handle_directory(output_dir, pathname, asset_meta)?;
             continue;
         }

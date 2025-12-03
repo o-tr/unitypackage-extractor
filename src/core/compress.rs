@@ -77,7 +77,25 @@ fn collect_entries<U: UiHandler>(
 ) -> Result<Vec<ArchiveEntry>, String> {
     let mut entries = Vec::new();
 
-    // ディレクトリを再帰的に走査
+    // まず、ルートディレクトリ自体をエントリとして追加
+    let meta_path = PathBuf::from(format!("{}.meta", input_dir.display()));
+    if meta_path.exists() {
+        let meta_content = std::fs::read_to_string(&meta_path)
+            .map_err(|e| format!("ルートディレクトリのmetaファイルの読み込みに失敗しました: {}", e))?;
+
+        let guid = extract_guid_from_meta(&meta_content)?;
+        let pathname = get_relative_path(base_dir, input_dir)?;
+
+        // ルートディレクトリをフォルダとして追加
+        entries.push(ArchiveEntry {
+            guid,
+            pathname,
+            asset_path: None,
+            meta_content,
+        });
+    }
+
+    // ディレクトリの中身を再帰的に走査
     collect_entries_recursive(base_dir, input_dir, &mut entries, ui_handler)?;
 
     Ok(entries)

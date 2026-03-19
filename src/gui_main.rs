@@ -86,10 +86,26 @@ fn run_extract(
         })();
 
         // 結果を共有メモリに保存
-        if let Ok(mut worker_result_slot) = worker_result_clone.lock() {
-            *worker_result_slot = Some(result);
-        } else {
-            eprintln!("警告: ワーカー結果の保存に失敗しました");
+        match worker_result_clone.lock() {
+            Ok(mut worker_result_slot) => {
+                *worker_result_slot = Some(result);
+            }
+            Err(e) => {
+                // mutex poison は致命的ではあるが、少なくとも結果が `None` になって失われるのは避ける
+                let lock_err = format!("{}", e);
+                let mut worker_result_slot = e.into_inner();
+                let stored = match result {
+                    Ok(()) => Err(format!(
+                        "ワーカースレッドの結果保存で mutex が poison されました: {}",
+                        lock_err
+                    )),
+                    Err(worker_err) => Err(format!(
+                        "ワーカースレッド処理に失敗しました: {}; さらに結果保存の mutex が poison されました: {}",
+                        worker_err, lock_err
+                    )),
+                };
+                *worker_result_slot = Some(stored);
+            }
         }
     });
 
@@ -109,31 +125,38 @@ fn run_extract(
     }
 
     // ワーカーの結果を確認
-    let result = lock_or_error(&worker_result, "ワーカー結果の取得に失敗しました")?.take();
-    let (success, was_cancelled) = match result {
+    // poison で lock() 自体が失敗しても、結果が `None` になるのは避ける
+    let mut poisoned_lock_msg: Option<String> = None;
+    let result = match worker_result.lock() {
+        Ok(mut slot) => slot.take(),
+        Err(e) => {
+            poisoned_lock_msg = Some(format!("ワーカー結果の mutex lock が poison されました: {}", e));
+            e.into_inner().take()
+        }
+    };
+
+    let (success, was_cancelled, worker_error) = match result {
         Some(Ok(())) => {
             println!("解凍が完了しました。");
-            (true, false)
+            (true, false, None)
         }
         Some(Err(e)) => {
             // キャンセルとエラーを区別
             let is_cancelled = e.contains("キャンセルされました");
-
             if is_cancelled {
                 println!("処理がキャンセルされました。");
+                (false, true, None)
             } else {
-                use rfd::MessageDialog;
-                MessageDialog::new()
-                    .set_title("エラー")
-                    .set_description(&format!("処理中にエラーが発生しました: {}", e))
-                    .show();
                 eprintln!("エラー: {}", e);
+                (false, false, Some(e))
             }
-            (false, is_cancelled)
         }
         None => {
             eprintln!("警告: ワーカースレッドの結果が取得できませんでした");
-            (false, false)
+            let msg = poisoned_lock_msg.unwrap_or_else(|| {
+                "ワーカースレッドの結果が取得できませんでした（保存失敗の可能性）".to_string()
+            });
+            (false, false, Some(msg))
         }
     };
 
@@ -149,7 +172,11 @@ fn run_extract(
         open_directory(&output_dir)?;
     }
 
-    Ok(())
+    if let Some(e) = worker_error {
+        Err(e)
+    } else {
+        Ok(())
+    }
 }
 
 fn open_directory(path: &Path) -> Result<(), String> {

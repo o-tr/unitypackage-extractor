@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 
 const ASSET_META_FILENAME: &str = "asset.meta";
 const PATHNAME_FILENAME: &str = "pathname";
+// 衝突が延々と続いた場合の無限ループ防止
+const MAX_ATTEMPTS: u32 = 10_000;
 
 pub fn rebuild_objects<U: UiHandler>(
     objects: &HashMap<String, HashMap<String, String>>,
@@ -129,7 +131,7 @@ fn handle_file<U: UiHandler>(
     if meta_path.exists() {
         let meta_path_display = build_meta_display_path(pathname, pathname_file_name);
 
-        let action = ui_handler.confirm_overwrite(&meta_path_display.display().to_string());
+        let action = ui_handler.confirm_overwrite(&meta_path_display.display().to_string())?;
 
         match action {
             OverwriteAction::Overwrite => {
@@ -162,9 +164,7 @@ fn handle_file<U: UiHandler>(
                 .file_name()
                 .and_then(|name| name.to_str())
                 .ok_or_else(|| format!("ファイル名の取得に失敗しました: {}", final_output_file_path.display()))?;
-            let action = ui_handler.confirm_overwrite(
-                display_name
-            );
+            let action = ui_handler.confirm_overwrite(display_name)?;
 
             match action {
                 OverwriteAction::Overwrite => {
@@ -228,6 +228,14 @@ fn find_unique_name(base_path: &Path, original_name: &str) -> Result<String, Str
     let mut count = 1;
 
     loop {
+        if count >= MAX_ATTEMPTS {
+            return Err(format!(
+                "一意な名前を作成できませんでした: {}（衝突が続いたため上限{}に到達）",
+                base_path.display(),
+                MAX_ATTEMPTS
+            ));
+        }
+
         let new_name = if let Some((stem, ext)) = original_name.rsplit_once('.') {
             format!("{}_copy{}.{}", stem, count, ext)
         } else {

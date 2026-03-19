@@ -34,8 +34,10 @@ pub trait UiHandler: Send {
 
     /// ファイル上書き確認
     /// path: 上書き対象のファイルパス
-    /// 戻り値: 上書きアクション
-    fn confirm_overwrite(&mut self, path: &str) -> OverwriteAction;
+    /// 戻り値:
+    /// - Ok: 上書きアクション
+    /// - Err: UI側の通信失敗など（ユーザー操作の Skip と区別するため）
+    fn confirm_overwrite(&mut self, path: &str) -> Result<OverwriteAction, String>;
 
     /// キャンセルされたかチェック
     fn is_cancelled(&self) -> bool;

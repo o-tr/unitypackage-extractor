@@ -42,14 +42,14 @@ impl UiHandler for GuiProgressHandler {
         fltk::app::awake();
     }
 
-    fn confirm_overwrite(&mut self, path: &str) -> OverwriteAction {
+    fn confirm_overwrite(&mut self, path: &str) -> Result<OverwriteAction, String> {
         if self.overwrite_mode != OverwriteMode::Ask {
-            return match self.overwrite_mode {
+            return Ok(match self.overwrite_mode {
                 OverwriteMode::Overwrite => OverwriteAction::Overwrite,
                 OverwriteMode::Skip => OverwriteAction::Skip,
                 OverwriteMode::Rename => OverwriteAction::Rename,
                 OverwriteMode::Ask => unreachable!(),
-            };
+            });
         }
 
         let (resp_tx, resp_rx) = channel();
@@ -60,10 +60,16 @@ impl UiHandler for GuiProgressHandler {
         fltk::app::awake();
 
         match resp_rx.recv() {
-            Ok(action) => action,
+            Ok(action) => Ok(action),
             Err(e) => {
-                eprintln!("警告: 上書き確認の応答受信に失敗しました: {}", e);
-                OverwriteAction::Skip
+                // ユーザーの選択と違い、チャネル失敗は別途エラーとして扱う
+                eprintln!("エラー: 上書き確認の応答受信に失敗しました: {}", e);
+                if self.cancelled.load(Ordering::SeqCst) {
+                    Err("キャンセルされました".to_string())
+                } else {
+                    self.cancelled.store(true, Ordering::SeqCst);
+                    Err(format!("上書き確認の応答受信に失敗しました: {}", e))
+                }
             }
         }
     }

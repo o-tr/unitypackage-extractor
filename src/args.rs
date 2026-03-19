@@ -107,7 +107,8 @@ impl Args {
             if arg.starts_with("--overwrite-mode=") {
                 let mode = arg
                     .strip_prefix("--overwrite-mode=")
-                    .ok_or_else(|| format!("Invalid overwrite mode option: {}", arg))?;
+                    // `starts_with` でプレフィックスは保証されるので失敗しない
+                    .expect("prefix guaranteed by starts_with check");
                 overwrite_mode = match mode {
                     "overwrite" => OverwriteMode::Overwrite,
                     "skip" => OverwriteMode::Skip,
@@ -118,7 +119,8 @@ impl Args {
             } else if arg.starts_with("--output-dir=") {
                 let dir = arg
                     .strip_prefix("--output-dir=")
-                    .ok_or_else(|| format!("Invalid output dir option: {}", arg))?;
+                    // `starts_with` でプレフィックスは保証されるので失敗しない
+                    .expect("prefix guaranteed by starts_with check");
                 output_dir = Some(PathBuf::from(dir));
             } else if arg == "--output-dir" {
                 i += 1;
@@ -188,7 +190,8 @@ impl Args {
             if arg.starts_with("--output=") {
                 let file = arg
                     .strip_prefix("--output=")
-                    .ok_or_else(|| format!("Invalid output option: {}", arg))?;
+                    // `starts_with` でプレフィックスは保証されるので失敗しない
+                    .expect("prefix guaranteed by starts_with check");
                 output_file = Some(PathBuf::from(file));
             } else if arg == "--output" || arg == "-o" {
                 i += 1;
@@ -199,7 +202,8 @@ impl Args {
             } else if arg.starts_with("--project-root=") {
                 let root = arg
                     .strip_prefix("--project-root=")
-                    .ok_or_else(|| format!("Invalid project root option: {}", arg))?;
+                    // `starts_with` でプレフィックスは保証されるので失敗しない
+                    .expect("prefix guaranteed by starts_with check");
                 project_root = Some(PathBuf::from(root));
             } else if arg == "--project-root" {
                 i += 1;

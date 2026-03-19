@@ -128,7 +128,14 @@ mod tests {
 
     #[test]
     fn validate_relative_archive_folder_reject_parent() {
-        assert!(validate_relative_archive_folder(Path::new("a\\..\\b")).is_err());
+        // 区切り文字に依存しない形で親ディレクトリ参照を拒否することを確認
+        assert!(validate_relative_archive_folder(Path::new("a/../b")).is_err());
+
+        // Windows では `\` 区切りでも parent 判定されることを追加確認
+        #[cfg(windows)]
+        {
+            assert!(validate_relative_archive_folder(Path::new("a\\..\\b")).is_err());
+        }
     }
 
     #[test]

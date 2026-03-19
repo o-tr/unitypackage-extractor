@@ -21,12 +21,12 @@ pub fn rebuild_objects<U: UiHandler>(
     for (folder, files) in objects {
         // キャンセルチェック
         if ui_handler.is_cancelled() {
-            return Err("キャンセルされました".to_string());
+            return Err(crate::core::CANCEL_ERROR_MSG.to_string());
         }
 
         idx += 1;
         let pathname = files.get(PATHNAME_FILENAME)
-            .ok_or("pathnameが見つかりません")?;
+            .ok_or_else(|| format!("pathnameが見つかりません: folder={}", folder))?;
         let asset_meta = files.get(ASSET_META_FILENAME)
             .ok_or("asset.metaが見つかりません")?;
 
@@ -40,12 +40,9 @@ pub fn rebuild_objects<U: UiHandler>(
         let source_file_path = source_dir.join(&folder);
 
         // フォルダかどうかの判定:
-        // 1. metaファイルにfolderAsset: yesがある
-        // 2. source_file_pathが存在しない（フォルダアセットは空ファイルなので展開時に存在しない）
-        // 3. source_file_pathがディレクトリとして存在する
-        let is_folder_by_meta = asset_meta_yaml["folderAsset"].as_str().unwrap_or("false") == "yes";
-        let is_folder_by_fs = source_file_path.exists() && source_file_path.is_dir();
-        let is_dir = is_folder_by_meta || !source_file_path.exists() || is_folder_by_fs;
+        // metaファイルの folderAsset: yes のみを正式な判定基準とする。
+        // !source_file_path.exists() はassetが欠損した通常ファイルもフォルダ扱いにしてしまうため使用しない。
+        let is_dir = asset_meta_yaml["folderAsset"].as_str().unwrap_or("false") == "yes";
 
         if is_dir {
             handle_directory(output_dir, pathname, asset_meta)?;

@@ -51,7 +51,7 @@ pub fn extract_objects<U: UiHandler>(
     {
         // キャンセルチェック
         if ui_handler.is_cancelled() {
-            return Err("キャンセルされました".to_string());
+            return Err(crate::core::CANCEL_ERROR_MSG.to_string());
         }
 
         idx += 1;

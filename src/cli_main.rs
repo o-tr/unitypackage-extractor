@@ -3,8 +3,29 @@ use crate::core::{extract_objects, rebuild_objects, compress_directory};
 use crate::ui::cli::CliProgressHandler;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 const TMP_OUTPUT_DIR: &str = ".jp.ootr.unitypackage-extractor";
+
+#[cfg(feature = "cli")]
+fn setup_ctrlc_handler() -> Arc<AtomicBool> {
+    use std::sync::atomic::Ordering;
+    let cancelled = Arc::new(AtomicBool::new(false));
+    let cancelled_clone = Arc::clone(&cancelled);
+    if let Err(e) = ctrlc::set_handler(move || {
+        eprintln!("\nキャンセル中...");
+        cancelled_clone.store(true, Ordering::SeqCst);
+    }) {
+        eprintln!("警告: Ctrl+Cハンドラーの登録に失敗しました: {}", e);
+    }
+    cancelled
+}
+
+#[cfg(not(feature = "cli"))]
+fn setup_ctrlc_handler() -> Arc<AtomicBool> {
+    Arc::new(AtomicBool::new(false))
+}
 
 pub fn run() -> Result<(), String> {
     let args = Args::parse()?;
@@ -54,8 +75,9 @@ fn run_extract(
 
     println!("解凍を開始します: {} -> {}", input_file.display(), output_dir.display());
 
+    let cancelled = setup_ctrlc_handler();
     let mut objects = HashMap::new();
-    let mut ui_handler = CliProgressHandler::new(overwrite_mode);
+    let mut ui_handler = CliProgressHandler::new(overwrite_mode, cancelled);
 
     // 抽出
     extract_objects(input_file, &tmp_output_dir, &mut objects, &mut ui_handler)?;
@@ -89,7 +111,8 @@ fn run_compress(
     }
 
     // 圧縮モードではOverwriteModeは不要（常にRenameで良い）
-    let mut ui_handler = CliProgressHandler::new(crate::ui::OverwriteMode::Rename);
+    let cancelled = setup_ctrlc_handler();
+    let mut ui_handler = CliProgressHandler::new(crate::ui::OverwriteMode::Rename, cancelled);
 
     // 圧縮実行
     compress_directory(input_dir, output_file, project_root.map(|p| p.as_path()), &mut ui_handler)?;

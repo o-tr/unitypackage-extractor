@@ -82,7 +82,6 @@ fn run_extract(
         *worker_result_clone.lock().unwrap() = Some(result);
     });
 
-    println!("解凍を開始します");
     progress.run_loop(rx);
 
     // ワーカースレッドの完了を待機
@@ -90,18 +89,15 @@ fn run_extract(
 
     // ワーカーの結果を確認
     let result = worker_result.lock().unwrap().take();
-    let (success, was_cancelled) = match result {
+    let success = match result {
         Some(Ok(())) => {
-            println!("解凍が完了しました。");
-            (true, false)
+            true
         }
         Some(Err(e)) => {
             // キャンセルとエラーを区別
-            let is_cancelled = e.contains("キャンセルされました");
+            let is_cancelled = e == crate::core::CANCEL_ERROR_MSG;
 
-            if is_cancelled {
-                println!("処理がキャンセルされました。");
-            } else {
+            if !is_cancelled {
                 use rfd::MessageDialog;
                 MessageDialog::new()
                     .set_title("エラー")
@@ -109,11 +105,11 @@ fn run_extract(
                     .show();
                 eprintln!("エラー: {}", e);
             }
-            (false, is_cancelled)
+            false
         }
         None => {
             eprintln!("警告: ワーカースレッドの結果が取得できませんでした");
-            (false, false)
+            false
         }
     };
 
@@ -124,8 +120,8 @@ fn run_extract(
         }
     }
 
-    // 成功時またはキャンセル時にディレクトリを開く
-    if success || was_cancelled {
+    // 成功時のみディレクトリを開く
+    if success {
         open_directory(&output_dir)?;
     }
 

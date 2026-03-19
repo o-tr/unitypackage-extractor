@@ -27,7 +27,7 @@ pub fn compress_directory<U: UiHandler>(
         return Err("圧縮対象のファイルが見つかりませんでした".to_string());
     }
 
-    println!("{}個のファイルを圧縮します...", entries.len());
+    ui_handler.update_progress(0.0, &format!("{}個のファイルを圧縮します...", entries.len()));
 
     // 出力ファイルを作成
     let output_file_handle = File::create(output_file)
@@ -42,7 +42,7 @@ pub fn compress_directory<U: UiHandler>(
     for (idx, entry) in entries.iter().enumerate() {
         // キャンセルチェック
         if ui_handler.is_cancelled() {
-            return Err("キャンセルされました".to_string());
+            return Err(crate::core::CANCEL_ERROR_MSG.to_string());
         }
 
         ui_handler.update_progress(
@@ -114,7 +114,7 @@ fn collect_entries_recursive<U: UiHandler>(
     for entry_result in read_dir {
         // キャンセルチェック
         if ui_handler.is_cancelled() {
-            return Err("キャンセルされました".to_string());
+            return Err(crate::core::CANCEL_ERROR_MSG.to_string());
         }
 
         let entry = entry_result
@@ -139,11 +139,11 @@ fn collect_entries_recursive<U: UiHandler>(
 
         if !meta_path.exists() {
             if path.is_dir() {
-                println!("警告: ディレクトリのmetaファイルが見つかりません（スキップ）: {}", path.display());
+                eprintln!("警告: ディレクトリのmetaファイルが見つかりません（スキップ）: {}", path.display());
                 // metaがなくてもディレクトリ内を再帰的に走査
                 collect_entries_recursive(base_dir, &path, entries, ui_handler)?;
             } else {
-                println!("警告: ファイルのmetaファイルが見つかりません（スキップ）: {}", path.display());
+                eprintln!("警告: ファイルのmetaファイルが見つかりません（スキップ）: {}", path.display());
             }
             continue;
         }

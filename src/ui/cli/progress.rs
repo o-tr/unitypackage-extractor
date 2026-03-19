@@ -31,24 +31,23 @@ impl UiHandler for CliProgressHandler {
         println!("[100%] 完了");
     }
 
-    fn confirm_overwrite(&mut self, path: &str) -> OverwriteAction {
+    fn confirm_overwrite(&mut self, path: &str) -> Result<OverwriteAction, String> {
         match self.overwrite_mode {
             OverwriteMode::Overwrite => {
                 println!("上書き: {}", path);
-                OverwriteAction::Overwrite
+                Ok(OverwriteAction::Overwrite)
             }
             OverwriteMode::Skip => {
                 println!("スキップ: {}", path);
-                OverwriteAction::Skip
+                Ok(OverwriteAction::Skip)
             }
             OverwriteMode::Rename => {
                 println!("リネーム: {}", path);
-                OverwriteAction::Rename
+                Ok(OverwriteAction::Rename)
             }
             OverwriteMode::Ask => {
                 // CLI版では Ask は使用しない
-                eprintln!("警告: CLI版では対話的な確認はサポートされていません。スキップします。");
-                OverwriteAction::Skip
+                Err("CLI版では OverwriteMode::Ask はサポートされていません".to_string())
             }
         }
     }

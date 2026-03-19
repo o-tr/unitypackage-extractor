@@ -35,6 +35,8 @@ jobs:
       - name: Calculate new version from latest tag
         id: calc_version
         shell: bash
+        env:
+          RELEASE_TYPE: ${{ github.event.inputs.release_type }}
         run: |
           set -euo pipefail
           # 既存の最新タグを取得（ない場合はv0.0.0から開始）
@@ -46,7 +48,7 @@ jobs:
           echo "Latest tag: ${latest_tag}"
           base=${latest_tag#v}
           IFS='.' read -r major minor patch <<<"${base}"
-          case "${{ github.event.inputs.release_type }}" in
+          case "${RELEASE_TYPE}" in
             major)
               major=$((major + 1)); minor=0; patch=0 ;;
             minor)
@@ -58,12 +60,35 @@ jobs:
           echo "New tag: ${new_tag}"
           echo "new_tag=${new_tag}" >> "$GITHUB_OUTPUT"
 
-      - name: Create and push tag
+      - name: Sync version files
         shell: bash
+        env:
+          NEW_TAG: ${{ steps.calc_version.outputs.new_tag }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          git tag -a "${{ steps.calc_version.outputs.new_tag }}" -m "Release ${{ steps.calc_version.outputs.new_tag }}"
-          git push origin "${{ steps.calc_version.outputs.new_tag }}"
+          version="${NEW_TAG}"
+          version="${version#v}"
+
+          sed -i -E "s/^version = \".*\"$/version = \"${version}\"/" Cargo.toml
+          sed -i -E "s/^AppVersion=.*/AppVersion=${version}/" installer/unitypackage-extractor.iss
+
+          git add Cargo.toml installer/unitypackage-extractor.iss
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: sync release version ${version}"
+            git push origin "HEAD:${REF_NAME}"
+          else
+            echo "Version files already in sync."
+          fi
+
+      - name: Create and push tag
+        shell: bash
+        env:
+          NEW_TAG: ${{ steps.calc_version.outputs.new_tag }}
+        run: |
+          set -euo pipefail
+          git tag -a "${NEW_TAG}" -m "Release ${NEW_TAG}"
+          git push origin "${NEW_TAG}"
 
       - name: Set job outputs
         id: set_outputs

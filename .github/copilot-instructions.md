@@ -5,7 +5,7 @@
 ## コーディング方針
 - Rustの標準ライブラリを優先的に使用してください。
 - ファイル操作（コピー、移動、metaファイル生成）は既存の実装に倣ってください。
-- ユーザーへの確認（上書き確認など）はdialog.rsの関数を利用してください。
+- ユーザーへの確認（上書き確認など）は `src/ui` 配下のUI抽象（`UiHandler`）を利用してください。
 - Windows環境での動作を前提とします。
 
 ## 処理の流れ
@@ -14,10 +14,13 @@
 3. pathnameファイルを元に、assetファイルを適切なディレクトリに配置します。
 
 ## ファイル構成
-- src/main.rs: CLIエントリーポイント。コマンド分岐。
-- src/rebuild.rs: パッケージ再構築ロジック。ファイル・ディレクトリ操作、metaファイル生成。
-- src/extract.rs: パッケージ抽出ロジック。
-- src/dialog.rs: ユーザー確認ダイアログ等のUI補助。
+- src/main.rs: エントリーポイント。featureに応じてCLI/GUIを分岐。
+- src/cli_main.rs: CLI版メインロジック。
+- src/gui_main.rs: GUI版メインロジック。
+- src/core/extract.rs: パッケージ抽出ロジック。
+- src/core/rebuild.rs: パッケージ再構築ロジック。
+- src/core/compress.rs: パッケージ圧縮ロジック。
+- src/ui/: UI抽象とCLI/GUI実装。
 
 ## 命名規則・スタイル
 - Rustの一般的な命名規則（snake_case）に従ってください。

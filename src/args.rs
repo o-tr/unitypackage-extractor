@@ -22,33 +22,6 @@ pub struct Args {
     pub command: Command,
 }
 
-// 後方互換性のため、古いAPIも維持
-impl Args {
-    #[allow(dead_code)]
-    pub fn input_file(&self) -> &PathBuf {
-        match &self.command {
-            Command::Extract { input_file, .. } => input_file,
-            Command::Compress { input_dir, .. } => input_dir,
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn output_dir(&self) -> Option<&PathBuf> {
-        match &self.command {
-            Command::Extract { output_dir, .. } => output_dir.as_ref(),
-            Command::Compress { .. } => None,
-        }
-    }
-
-    #[allow(dead_code)]
-    #[cfg_attr(feature = "gui", allow(dead_code))]
-    pub fn overwrite_mode(&self) -> OverwriteMode {
-        match &self.command {
-            Command::Extract { overwrite_mode, .. } => *overwrite_mode,
-            Command::Compress { .. } => OverwriteMode::Rename,
-        }
-    }
-}
 
 impl Args {
     pub fn parse() -> Result<Self, String> {

@@ -9,10 +9,10 @@ pub struct CliProgressHandler {
 }
 
 impl CliProgressHandler {
-    pub fn new(overwrite_mode: OverwriteMode) -> Self {
+    pub fn new(overwrite_mode: OverwriteMode, cancelled: Arc<AtomicBool>) -> Self {
         Self {
             overwrite_mode,
-            cancelled: Arc::new(AtomicBool::new(false)),
+            cancelled,
             last_progress: 0.0,
         }
     }

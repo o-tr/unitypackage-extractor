@@ -109,7 +109,6 @@ fn run_extract(
         }
     });
 
-    println!("解凍を開始します");
     progress.run_loop(rx);
 
     // ワーカースレッドの完了を待機
@@ -135,21 +134,19 @@ fn run_extract(
         }
     };
 
-    let (success, was_cancelled, worker_error) = match result {
+    let (success, worker_error) = match result {
         Some(Ok(())) => {
-            println!("解凍が完了しました。");
-            (true, false, None)
+            (true, None)
         }
         Some(Err(e)) => {
             // キャンセルとエラーを区別
             // エラー文言ではなくキャンセルフラグを唯一の判定根拠にする
             let is_cancelled = cancelled.load(std::sync::atomic::Ordering::SeqCst);
-            if is_cancelled {
-                println!("処理がキャンセルされました。");
-                (false, true, None)
-            } else {
+            if !is_cancelled {
                 eprintln!("エラー: {}", e);
-                (false, false, Some(e))
+                (false, Some(e))
+            } else {
+                (false, None)
             }
         }
         None => {
@@ -157,7 +154,7 @@ fn run_extract(
             let msg = poisoned_lock_msg.unwrap_or_else(|| {
                 "ワーカースレッドの結果が取得できませんでした（保存失敗の可能性）".to_string()
             });
-            (false, false, Some(msg))
+            (false, Some(msg))
         }
     };
 
@@ -168,8 +165,8 @@ fn run_extract(
         }
     }
 
-    // 成功時またはキャンセル時にディレクトリを開く
-    if success || was_cancelled {
+    // 成功時のみディレクトリを開く
+    if success {
         open_directory(&output_dir)?;
     }
 

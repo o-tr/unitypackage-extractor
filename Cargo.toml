@@ -7,6 +7,7 @@ edition = "2021"
 flate2 = "1.0"
 tar = "0.4"
 yaml-rust = "0.4"
+ctrlc = { version = "3", optional = true }
 
 # GUI版のみで必要
 rfd = { version = "0.15", optional = true }
@@ -15,3 +16,4 @@ fltk = { version = "1", optional = true, features = ["fltk-bundled"] }
 [features]
 default = []
 gui = ["fltk", "rfd"]
+cli = ["ctrlc"]

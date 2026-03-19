@@ -142,7 +142,8 @@ fn run_extract(
         }
         Some(Err(e)) => {
             // キャンセルとエラーを区別
-            let is_cancelled = e.contains("キャンセルされました");
+            // エラー文言ではなくキャンセルフラグを唯一の判定根拠にする
+            let is_cancelled = cancelled.load(std::sync::atomic::Ordering::SeqCst);
             if is_cancelled {
                 println!("処理がキャンセルされました。");
                 (false, true, None)

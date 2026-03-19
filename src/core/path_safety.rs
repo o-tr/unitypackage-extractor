@@ -54,21 +54,10 @@ pub fn validate_relative_unix_path(pathname: &str) -> Result<(), String> {
         ));
     }
 
-    for segment in pathname.split('/') {
-        if segment.is_empty() || segment == "." {
-            continue;
-        }
-        if segment == ".." {
-            return Err(format!(
-                "pathnameが不正です（.. は不可）: {}",
-                pathname
-            ));
-        }
-    }
-
     for component in path.components() {
         match component {
             Component::Normal(_) => {}
+            // `./foo/bar` のような CurDir は互換性のため許可する
             Component::CurDir => {}
             Component::ParentDir => {
                 return Err(format!(
@@ -109,6 +98,11 @@ mod tests {
     #[test]
     fn validate_relative_unix_path_ok() {
         assert!(validate_relative_unix_path("Assets/MyPackage/file.txt").is_ok());
+    }
+
+    #[test]
+    fn validate_relative_unix_path_allows_leading_curdir() {
+        assert!(validate_relative_unix_path("./Assets/MyPackage/file.txt").is_ok());
     }
 
     #[test]

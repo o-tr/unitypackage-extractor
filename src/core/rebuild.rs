@@ -1,4 +1,4 @@
-use crate::core::path_safety::{parse_pathname, validate_relative_archive_folder};
+use crate::core::path_safety::parse_pathname;
 use crate::ui::{OverwriteAction, UiHandler};
 use yaml_rust::YamlLoader;
 use std::collections::HashMap;
@@ -42,7 +42,7 @@ pub fn rebuild_objects<U: UiHandler>(
             .ok_or("metaファイルのルートが見つかりません")?;
 
         let folder_path = Path::new(folder);
-        validate_relative_archive_folder(folder_path)?;
+        // `folder` は extract 側で validate_relative_archive_folder 済みのキー
         let source_file_path = source_dir.join(folder_path);
 
         // フォルダかどうかの判定:

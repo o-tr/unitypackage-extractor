@@ -31,7 +31,7 @@ pub fn rebuild_objects<U: UiHandler>(
         let pathname = files.get(PATHNAME_FILENAME)
             .ok_or_else(|| format!("pathnameが見つかりません: folder={}", folder))?;
         let asset_meta = files.get(ASSET_META_FILENAME)
-            .ok_or("asset.metaが見つかりません")?;
+            .ok_or_else(|| format!("asset.metaが見つかりません: folder={}", folder))?;
         let (pathname_path, pathname_file_name) = parse_pathname(pathname)?;
 
         ui_handler.update_progress(idx as f32 / total, pathname);

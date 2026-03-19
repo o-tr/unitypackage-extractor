@@ -59,7 +59,13 @@ impl UiHandler for GuiProgressHandler {
         });
         fltk::app::awake();
 
-        resp_rx.recv().unwrap_or(OverwriteAction::Skip)
+        match resp_rx.recv() {
+            Ok(action) => action,
+            Err(e) => {
+                eprintln!("警告: 上書き確認の応答受信に失敗しました: {}", e);
+                OverwriteAction::Skip
+            }
+        }
     }
 
     fn is_cancelled(&self) -> bool {
@@ -298,6 +304,7 @@ impl ProgressWindow {
             fltk::app::wait();
         }
 
-        *result.borrow()
+        let selected = *result.borrow();
+        selected
     }
 }

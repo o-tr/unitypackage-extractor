@@ -58,6 +58,24 @@ jobs:
           echo "New tag: ${new_tag}"
           echo "new_tag=${new_tag}" >> "$GITHUB_OUTPUT"
 
+      - name: Sync version files
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.calc_version.outputs.new_tag }}"
+          version="${version#v}"
+
+          sed -i -E "s/^version = \".*\"$/version = \"${version}\"/" Cargo.toml
+          sed -i -E "s/^AppVersion=.*/AppVersion=${version}/" installer/unitypackage-extractor.iss
+
+          git add Cargo.toml installer/unitypackage-extractor.iss
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: sync release version ${version}"
+            git push origin "HEAD:${{ github.ref_name }}"
+          else
+            echo "Version files already in sync."
+          fi
+
       - name: Create and push tag
         shell: bash
         run: |

@@ -3,6 +3,7 @@ use crate::core::{extract_objects, rebuild_objects};
 use crate::ui::gui::{GuiProgressHandler, ProgressWindow, pick_output_dir};
 use crate::ui::UiHandler;
 use std::collections::HashMap;
+use std::sync::MutexGuard;
 use std::sync::{Arc, Mutex};
 use std::path::Path;
 
@@ -20,6 +21,12 @@ pub fn run() -> Result<(), String> {
             Err("GUI版ではcompressコマンドはサポートされていません。CLI版を使用してください。".to_string())
         }
     }
+}
+
+fn lock_or_error<'a, T>(mutex: &'a Mutex<T>, context: &str) -> Result<MutexGuard<'a, T>, String> {
+    mutex
+        .lock()
+        .map_err(|e| format!("{}: {}", context, e))
 }
 
 fn run_extract(
@@ -62,7 +69,7 @@ fn run_extract(
     // 処理スレッド起動
     let worker_handle = std::thread::spawn(move || {
         let result = (|| -> Result<(), String> {
-            let mut objects = objects_clone.lock().unwrap();
+            let mut objects = lock_or_error(&objects_clone, "共有オブジェクトのロックに失敗しました")?;
 
             // extractionを実行
             extract_objects(&input_file, &tmp_output_dir_clone, &mut *objects, &mut ui_handler)?;
@@ -79,17 +86,30 @@ fn run_extract(
         })();
 
         // 結果を共有メモリに保存
-        *worker_result_clone.lock().unwrap() = Some(result);
+        if let Ok(mut worker_result_slot) = worker_result_clone.lock() {
+            *worker_result_slot = Some(result);
+        } else {
+            eprintln!("警告: ワーカー結果の保存に失敗しました");
+        }
     });
 
     println!("解凍を開始します");
     progress.run_loop(rx);
 
     // ワーカースレッドの完了を待機
-    worker_handle.join().expect("Worker thread panicked");
+    if let Err(payload) = worker_handle.join() {
+        let panic_message = if let Some(msg) = payload.downcast_ref::<&str>() {
+            msg.to_string()
+        } else if let Some(msg) = payload.downcast_ref::<String>() {
+            msg.clone()
+        } else {
+            "ワーカースレッドがpanicしました".to_string()
+        };
+        return Err(format!("内部エラー: {}", panic_message));
+    }
 
     // ワーカーの結果を確認
-    let result = worker_result.lock().unwrap().take();
+    let result = lock_or_error(&worker_result, "ワーカー結果の取得に失敗しました")?.take();
     let (success, was_cancelled) = match result {
         Some(Ok(())) => {
             println!("解凍が完了しました。");

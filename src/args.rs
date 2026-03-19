@@ -105,7 +105,9 @@ impl Args {
             let arg = &args[i];
 
             if arg.starts_with("--overwrite-mode=") {
-                let mode = arg.strip_prefix("--overwrite-mode=").unwrap();
+                let mode = arg
+                    .strip_prefix("--overwrite-mode=")
+                    .ok_or_else(|| format!("Invalid overwrite mode option: {}", arg))?;
                 overwrite_mode = match mode {
                     "overwrite" => OverwriteMode::Overwrite,
                     "skip" => OverwriteMode::Skip,
@@ -114,7 +116,9 @@ impl Args {
                     _ => return Err(format!("Invalid overwrite mode: {}. Use: overwrite, skip, rename, or ask", mode)),
                 };
             } else if arg.starts_with("--output-dir=") {
-                let dir = arg.strip_prefix("--output-dir=").unwrap();
+                let dir = arg
+                    .strip_prefix("--output-dir=")
+                    .ok_or_else(|| format!("Invalid output dir option: {}", arg))?;
                 output_dir = Some(PathBuf::from(dir));
             } else if arg == "--output-dir" {
                 i += 1;
@@ -182,7 +186,9 @@ impl Args {
             let arg = &args[i];
 
             if arg.starts_with("--output=") {
-                let file = arg.strip_prefix("--output=").unwrap();
+                let file = arg
+                    .strip_prefix("--output=")
+                    .ok_or_else(|| format!("Invalid output option: {}", arg))?;
                 output_file = Some(PathBuf::from(file));
             } else if arg == "--output" || arg == "-o" {
                 i += 1;
@@ -191,7 +197,9 @@ impl Args {
                 }
                 output_file = Some(PathBuf::from(&args[i]));
             } else if arg.starts_with("--project-root=") {
-                let root = arg.strip_prefix("--project-root=").unwrap();
+                let root = arg
+                    .strip_prefix("--project-root=")
+                    .ok_or_else(|| format!("Invalid project root option: {}", arg))?;
                 project_root = Some(PathBuf::from(root));
             } else if arg == "--project-root" {
                 i += 1;

@@ -43,6 +43,7 @@ unitypackage-extractor.exe compress ./MyUnityProject/Assets/MyPackage output.uni
 - `.meta`ファイルが存在しないファイル/ディレクトリは警告が表示され、スキップされます
 - `.meta`ファイルから既存のGUIDを読み取り、パッケージに含めます
 - `--project-root`を指定しない場合、入力ディレクトリの親ディレクトリが基準となります
+- 抽出時は安全のため、`pathname` に絶対パスや `..` を含む不正エントリを拒否します
 
 
 ## 開発

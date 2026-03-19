@@ -2,7 +2,7 @@ use crate::args::{Args, Command};
 use crate::core::{extract_objects, rebuild_objects, compress_directory};
 use crate::ui::cli::CliProgressHandler;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
@@ -41,7 +41,7 @@ pub fn run() -> Result<(), String> {
 }
 
 fn run_extract(
-    input_file: &PathBuf,
+    input_file: &Path,
     output_dir: Option<&PathBuf>,
     overwrite_mode: crate::ui::OverwriteMode,
 ) -> Result<(), String> {
@@ -83,7 +83,7 @@ fn run_extract(
     extract_objects(input_file, &tmp_output_dir, &mut objects, &mut ui_handler)?;
 
     // 再構築
-    rebuild_objects(&objects, &output_dir, &tmp_output_dir, &mut ui_handler)?;
+    rebuild_objects(&objects, output_dir, &tmp_output_dir, &mut ui_handler)?;
 
     // 明示的なクリーンアップは不要（Dropガードで常に削除される）
 
@@ -93,8 +93,8 @@ fn run_extract(
 }
 
 fn run_compress(
-    input_dir: &PathBuf,
-    output_file: &PathBuf,
+    input_dir: &Path,
+    output_file: &Path,
     project_root: Option<&PathBuf>,
 ) -> Result<(), String> {
     if !input_dir.exists() {

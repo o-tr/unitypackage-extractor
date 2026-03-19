@@ -1,4 +1,5 @@
 use crate::ui::UiHandler;
+use crate::core::path_safety::validate_relative_archive_folder;
 use flate2::read::GzDecoder;
 use std::collections::HashMap;
 use std::fs::File;
@@ -71,12 +72,20 @@ pub fn extract_objects<U: UiHandler>(
             continue;
         }
 
-        let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
-        let folder = if let Some(parent) = path.parent() {
-            parent.to_str().unwrap().to_string()
-        } else {
-            "".to_string()
-        };
+        let file_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| format!("アーカイブ内ファイル名の取得に失敗しました: {}", path.display()))?
+            .to_string();
+
+        let folder_path = path
+            .parent()
+            .ok_or_else(|| format!("アーカイブ内親ディレクトリの取得に失敗しました: {}", path.display()))?;
+        validate_relative_archive_folder(folder_path)?;
+        let folder = folder_path
+            .to_str()
+            .ok_or_else(|| format!("アーカイブ内パスがUTF-8ではありません: {}", path.display()))?
+            .to_string();
 
         if file_name == ASSET_META_FILENAME || file_name == PATHNAME_FILENAME {
             let mut string_entry = String::new();
@@ -91,10 +100,10 @@ pub fn extract_objects<U: UiHandler>(
             continue;
         }
         if file_name != ASSET_FILE_NAME {
-            println!("unknown file: {}", file_name);
+            eprintln!("警告: アーカイブ内の不明ファイルをスキップします: {}", file_name);
             continue;
         }
-        let out_path = output_dir.join(&folder);
+        let out_path = output_dir.join(folder_path);
         if let Some(parent) = out_path.parent() {
             if !parent.exists() {
                 std::fs::create_dir_all(parent).map_err(|e| format!("ディレクトリ作成失敗: {}", e))?;

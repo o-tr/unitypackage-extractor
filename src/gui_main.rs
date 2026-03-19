@@ -3,6 +3,7 @@ use crate::core::{extract_objects, rebuild_objects};
 use crate::ui::gui::{GuiProgressHandler, ProgressWindow, pick_output_dir};
 use crate::ui::UiHandler;
 use std::collections::HashMap;
+use std::sync::MutexGuard;
 use std::sync::{Arc, Mutex};
 use std::path::Path;
 
@@ -20,6 +21,12 @@ pub fn run() -> Result<(), String> {
             Err("GUI版ではcompressコマンドはサポートされていません。CLI版を使用してください。".to_string())
         }
     }
+}
+
+fn lock_or_error<'a, T>(mutex: &'a Mutex<T>, context: &str) -> Result<MutexGuard<'a, T>, String> {
+    mutex
+        .lock()
+        .map_err(|e| format!("{}: {}", context, e))
 }
 
 fn run_extract(
@@ -62,7 +69,7 @@ fn run_extract(
     // 処理スレッド起動
     let worker_handle = std::thread::spawn(move || {
         let result = (|| -> Result<(), String> {
-            let mut objects = objects_clone.lock().unwrap();
+            let mut objects = lock_or_error(&objects_clone, "共有オブジェクトのロックに失敗しました")?;
 
             // extractionを実行
             extract_objects(&input_file, &tmp_output_dir_clone, &mut *objects, &mut ui_handler)?;
@@ -79,37 +86,75 @@ fn run_extract(
         })();
 
         // 結果を共有メモリに保存
-        *worker_result_clone.lock().unwrap() = Some(result);
+        match worker_result_clone.lock() {
+            Ok(mut worker_result_slot) => {
+                *worker_result_slot = Some(result);
+            }
+            Err(e) => {
+                // mutex poison は致命的ではあるが、少なくとも結果が `None` になって失われるのは避ける
+                let lock_err = format!("{}", e);
+                let mut worker_result_slot = e.into_inner();
+                let stored = match result {
+                    Ok(()) => Err(format!(
+                        "ワーカースレッドの結果保存で mutex が poison されました: {}",
+                        lock_err
+                    )),
+                    Err(worker_err) => Err(format!(
+                        "ワーカースレッド処理に失敗しました: {}; さらに結果保存の mutex が poison されました: {}",
+                        worker_err, lock_err
+                    )),
+                };
+                *worker_result_slot = Some(stored);
+            }
+        }
     });
 
     progress.run_loop(rx);
 
     // ワーカースレッドの完了を待機
-    worker_handle.join().expect("Worker thread panicked");
+    if let Err(payload) = worker_handle.join() {
+        let panic_message = if let Some(msg) = payload.downcast_ref::<&str>() {
+            msg.to_string()
+        } else if let Some(msg) = payload.downcast_ref::<String>() {
+            msg.clone()
+        } else {
+            "ワーカースレッドがpanicしました".to_string()
+        };
+        return Err(format!("内部エラー: {}", panic_message));
+    }
 
     // ワーカーの結果を確認
-    let result = worker_result.lock().unwrap().take();
-    let success = match result {
+    // poison で lock() 自体が失敗しても、結果が `None` になるのは避ける
+    let mut poisoned_lock_msg: Option<String> = None;
+    let result = match worker_result.lock() {
+        Ok(mut slot) => slot.take(),
+        Err(e) => {
+            poisoned_lock_msg = Some(format!("ワーカー結果の mutex lock が poison されました: {}", e));
+            e.into_inner().take()
+        }
+    };
+
+    let (success, worker_error) = match result {
         Some(Ok(())) => {
-            true
+            (true, None)
         }
         Some(Err(e)) => {
             // キャンセルとエラーを区別
-            let is_cancelled = e == crate::core::CANCEL_ERROR_MSG;
-
+            // エラー文言ではなくキャンセルフラグを唯一の判定根拠にする
+            let is_cancelled = cancelled.load(std::sync::atomic::Ordering::SeqCst);
             if !is_cancelled {
-                use rfd::MessageDialog;
-                MessageDialog::new()
-                    .set_title("エラー")
-                    .set_description(&format!("処理中にエラーが発生しました: {}", e))
-                    .show();
                 eprintln!("エラー: {}", e);
+                (false, Some(e))
+            } else {
+                (false, None)
             }
-            false
         }
         None => {
             eprintln!("警告: ワーカースレッドの結果が取得できませんでした");
-            false
+            let msg = poisoned_lock_msg.unwrap_or_else(|| {
+                "ワーカースレッドの結果が取得できませんでした（保存失敗の可能性）".to_string()
+            });
+            (false, Some(msg))
         }
     };
 
@@ -125,7 +170,11 @@ fn run_extract(
         open_directory(&output_dir)?;
     }
 
-    Ok(())
+    if let Some(e) = worker_error {
+        Err(e)
+    } else {
+        Ok(())
+    }
 }
 
 fn open_directory(path: &Path) -> Result<(), String> {

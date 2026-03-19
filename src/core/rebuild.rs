@@ -160,11 +160,12 @@ fn handle_file<U: UiHandler>(
         }
 
         if final_output_file_path.exists() {
-            let display_name = final_output_file_path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .ok_or_else(|| format!("ファイル名の取得に失敗しました: {}", final_output_file_path.display()))?;
-            let action = ui_handler.confirm_overwrite(display_name)?;
+            let display_path = final_output_file_path
+                .strip_prefix(output_dir)
+                .unwrap_or(&final_output_file_path)
+                .to_string_lossy()
+                .into_owned();
+            let action = ui_handler.confirm_overwrite(&display_path)?;
 
             match action {
                 OverwriteAction::Overwrite => {
@@ -228,7 +229,7 @@ fn find_unique_name(base_path: &Path, original_name: &str) -> Result<String, Str
     let mut count = 1;
 
     loop {
-        if count >= MAX_ATTEMPTS {
+        if count > MAX_ATTEMPTS {
             return Err(format!(
                 "一意な名前を作成できませんでした: {}（衝突が続いたため上限{}に到達）",
                 base_path.display(),

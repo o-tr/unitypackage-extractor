@@ -39,6 +39,13 @@ pub fn validate_relative_unix_path(pathname: &str) -> Result<(), String> {
         return Err("pathnameが空です".to_string());
     }
 
+    if pathname.contains('\\') {
+        return Err(format!(
+            "pathnameが不正です（バックスラッシュは不可）: {}",
+            pathname
+        ));
+    }
+
     if pathname.starts_with('/') || pathname.starts_with('\\') {
         return Err(format!(
             "pathnameが不正です（絶対パスは不可）: {}",
@@ -113,6 +120,11 @@ mod tests {
     #[test]
     fn validate_relative_unix_path_reject_absolute() {
         assert!(validate_relative_unix_path("/etc/passwd").is_err());
+    }
+
+    #[test]
+    fn validate_relative_unix_path_reject_backslash() {
+        assert!(validate_relative_unix_path("Assets\\MyPackage\\file.txt").is_err());
     }
 
     #[test]

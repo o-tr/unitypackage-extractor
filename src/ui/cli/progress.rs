@@ -47,8 +47,7 @@ impl UiHandler for CliProgressHandler {
             }
             OverwriteMode::Ask => {
                 // CLI版では Ask は使用しない
-                eprintln!("警告: CLI版では対話的な確認はサポートされていません。スキップします。");
-                Ok(OverwriteAction::Skip)
+                Err("CLI版では OverwriteMode::Ask はサポートされていません".to_string())
             }
         }
     }

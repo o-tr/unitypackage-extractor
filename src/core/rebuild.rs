@@ -195,6 +195,13 @@ fn handle_file<U: UiHandler>(
             }
         }
 
+        if !source_file_path.exists() {
+            return Err(format!(
+                "アセットファイルが見つかりません（破損したunitypackageの可能性があります）: pathname={}",
+                pathname.display()
+            ));
+        }
+
         std::fs::rename(source_file_path, final_output_file_path)
             .map_err(|e| format!("Failed to rename source file to output file: {}", e))?;
     }
